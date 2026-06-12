@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Install .NET
         uses: actions/setup-dotnet@v5
@@ -29,7 +31,10 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Restore
-        run: dotnet restore src/Puhu.Plugin.MyPlugin.csproj
+        run: dotnet restore src/Puhu.Btop.csproj
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore src/Puhu.Plugin.MyPlugin.csproj
+        run: dotnet build --configuration Release --no-restore src/Puhu.Btop.csproj
+
+      - name: Test
+        run: dotnet test --configuration Release tests/Puhu.Btop.Tests

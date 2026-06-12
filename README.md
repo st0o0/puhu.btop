@@ -1,43 +1,54 @@
-# puhu.plugin.template
+# Puhu.Btop
 
-Template for creating [Puhu](https://github.com/st0o0/puhu) plugins. Click **"Use this template"** on GitHub to create your own plugin repo.
+A btop-style system monitor delivered as a [Puhu](https://github.com/st0o0/puhu) plugin — CPU, memory, disks, network and processes on a single screen.
 
-## Getting Started
+## Features
 
-1. Click "Use this template" and name your repo (e.g. `puhu.plugin.awesome`)
-2. Clone your new repo locally
-3. Rename everything from `MyPlugin` to your plugin name:
+- Single-screen layout with **CPU**, **Memory + Disks**, **Network**, and **Processes** boxes — plus a **GPU** box when an NVIDIA or Apple GPU is present.
+- Per-core CPU bars and gradient usage graphs.
+- Process list with filtering, sorting, and selection.
+- Theme-aware colors driven by the host theme.
 
-| What | Replace |
-|------|---------|
-| Folder/file names | `MyPlugin` → `Awesome` |
-| Namespaces | `Puhu.Plugin.MyPlugin` → `Puhu.Plugin.Awesome` |
-| Plugin name in `MyPlugin.cs` | `Name => "Awesome"` |
-| Tab label and route | `"MyPlugin", "/myplugin"` → `"Awesome", "/awesome"` |
-| `puhu-manifest.json` | Update id, name, description, author, repository, asset |
-| `csproj` filename | `Puhu.Plugin.MyPlugin.csproj` → `Puhu.Plugin.Awesome.csproj` |
+## Keybindings
 
-4. Set the `Puhu.Plugin` package version in the `.csproj` once it's published on NuGet
+| Key | Action |
+|------|--------|
+| `1` | Toggle CPU box |
+| `2` | Toggle Memory box |
+| `3` | Toggle Network box |
+| `4` | Toggle Processes box |
+| `↑` / `↓` | Select process |
+| `f` | Filter processes |
+| `e` | Toggle process tree |
+| `←` / `→` | Change sort column |
+| `t` | Terminate process |
+| `k` | Kill process |
 
-## Project Structure
+> Note: the box toggles, process selection, and filter are wired up. Process actions (terminate / kill / tree) and arrow-key sorting are in progress — some of these hints are advertised but not yet fully bound.
 
-```
-src/
-  Puhu.Plugin.MyPlugin.csproj   # Project file with Puhu.Plugin NuGet reference
-  MyPlugin.cs                    # IPuhuPlugin — entry point, registers tab + route
-  Pages/
-    MyPage.cs                    # ReactivePage with IKeyHintProvider
-    MyViewModel.cs               # ReactiveViewModel with reactive state
-puhu-manifest.json               # Plugin manifest for the Puhu registry
-```
+## Installation
 
-## Building
+**Marketplace** — open the Puhu marketplace and search for "Btop", then install.
+
+**Manual** — drop `Puhu.Btop.dll` into `~/.servus/plugins/`.
+
+## Development
+
+Clone with submodules (the Puhu SDK is consumed via the `lib/puhu` git submodule — it is not on NuGet yet, and has a nested `lib/termina` submodule):
 
 ```bash
-dotnet build src/Puhu.Plugin.MyPlugin.csproj
+git clone --recurse-submodules https://github.com/st0o0/puhu.btop
 ```
 
-## Publishing to the Registry
+If you already cloned without submodules:
 
-1. Create a GitHub Release with your built DLL as an asset
-2. Open a PR to [puhu.registry](https://github.com/st0o0/puhu.registry) adding your plugin entry to `index.json`
+```bash
+git submodule update --init --recursive
+```
+
+Then build and test:
+
+```bash
+dotnet build src/Puhu.Btop.csproj
+dotnet test tests/Puhu.Btop.Tests
+```
