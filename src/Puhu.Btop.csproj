@@ -10,4 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\lib\puhu\src\Puhu.Plugin\Puhu.Plugin.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Puhu.Btop.Tests" />
+  </ItemGroup>
 </Project>
