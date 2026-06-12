@@ -7,6 +7,7 @@ namespace Puhu.Btop.Platform.Windows;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsDiskMetrics : IDiskMetrics
 {
+    private readonly object _lock = new();
     private IntPtr _query;
     private readonly Dictionary<string, (IntPtr Read, IntPtr Write, IntPtr Active)> _counters = new();
     private volatile bool _ready;
@@ -18,36 +19,44 @@ public sealed class WindowsDiskMetrics : IDiskMetrics
             return;
         }
 
-        try
+        lock (_lock)
         {
-            if (PdhOpenQueryW(null, IntPtr.Zero, out _query) != 0)
+            if (_ready)
             {
                 return;
             }
 
-            foreach (var drive in DriveInfo.GetDrives())
+            try
             {
-                if (drive.DriveType != DriveType.Fixed || drive.Name.Length < 2)
+                if (PdhOpenQueryW(null, IntPtr.Zero, out _query) != 0)
                 {
-                    continue;
+                    return;
                 }
 
-                var instance = drive.Name[..2]; // "C:"
-                var read = AddCounter($@"\LogicalDisk({instance})\Disk Read Bytes/sec");
-                var write = AddCounter($@"\LogicalDisk({instance})\Disk Write Bytes/sec");
-                var active = AddCounter($@"\LogicalDisk({instance})\% Disk Time");
-                if (read != IntPtr.Zero && write != IntPtr.Zero && active != IntPtr.Zero)
+                foreach (var drive in DriveInfo.GetDrives())
                 {
-                    _counters[instance] = (read, write, active);
+                    if (drive.DriveType != DriveType.Fixed || drive.Name.Length < 2)
+                    {
+                        continue;
+                    }
+
+                    var instance = drive.Name[..2]; // "C:"
+                    var read = AddCounter($@"\LogicalDisk({instance})\Disk Read Bytes/sec");
+                    var write = AddCounter($@"\LogicalDisk({instance})\Disk Write Bytes/sec");
+                    var active = AddCounter($@"\LogicalDisk({instance})\% Disk Time");
+                    if (read != IntPtr.Zero && write != IntPtr.Zero && active != IntPtr.Zero)
+                    {
+                        _counters[instance] = (read, write, active);
+                    }
                 }
+
+                PdhCollectQueryData(_query);
+                _ready = _counters.Count > 0;
             }
-
-            PdhCollectQueryData(_query);
-            _ready = _counters.Count > 0;
-        }
-        catch
-        {
-            _ready = false;
+            catch
+            {
+                _ready = false;
+            }
         }
     }
 
@@ -60,11 +69,14 @@ public sealed class WindowsDiskMetrics : IDiskMetrics
 
         try
         {
-            PdhCollectQueryData(_query);
-            var read = (ulong)Math.Max(0, GetValue(c.Read));
-            var write = (ulong)Math.Max(0, GetValue(c.Write));
-            var active = Math.Clamp(GetValue(c.Active), 0, 100);
-            return (read, write, active);
+            lock (_lock)
+            {
+                PdhCollectQueryData(_query);
+                var read = (ulong)Math.Max(0, GetValue(c.Read));
+                var write = (ulong)Math.Max(0, GetValue(c.Write));
+                var active = Math.Clamp(GetValue(c.Active), 0, 100);
+                return (read, write, active);
+            }
         }
         catch
         {
@@ -74,10 +86,14 @@ public sealed class WindowsDiskMetrics : IDiskMetrics
 
     public void Dispose()
     {
-        if (_query != IntPtr.Zero)
+        lock (_lock)
         {
-            PdhCloseQuery(_query);
-            _query = IntPtr.Zero;
+            _ready = false;
+            if (_query != IntPtr.Zero)
+            {
+                PdhCloseQuery(_query);
+                _query = IntPtr.Zero;
+            }
         }
     }
 
@@ -90,16 +106,16 @@ public sealed class WindowsDiskMetrics : IDiskMetrics
         {
             return 0;
         }
-        return value.CStatus == 0 ? value.DoubleValue : 0;
+        return value.CStatus is 0u or 1u ? value.DoubleValue : 0;
     }
 
     private const uint PdhFmtDouble = 0x00000200;
 
-    [StructLayout(LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Explicit)]
     private struct PdhFmtCounterValue
     {
-        public uint CStatus;
-        public double DoubleValue;
+        [FieldOffset(0)] public uint CStatus;
+        [FieldOffset(8)] public double DoubleValue;
     }
 
     [DllImport("pdh.dll", CharSet = CharSet.Unicode)]

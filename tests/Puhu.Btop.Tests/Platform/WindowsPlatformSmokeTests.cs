@@ -1,10 +1,11 @@
 // Calls are runtime-guarded by Assert.SkipUnless(OperatingSystem.IsWindows()).
-#pragma warning disable CA1416 // Validate platform compatibility
+using System.Runtime.Versioning;
 using Puhu.Btop.Platform.Windows;
 using Xunit;
 
 namespace Puhu.Btop.Tests.Platform;
 
+[SupportedOSPlatform("windows")]
 public class WindowsPlatformSmokeTests
 {
     [Fact]
@@ -26,4 +27,3 @@ public class WindowsPlatformSmokeTests
         Assert.NotNull(tree);
     }
 }
-#pragma warning restore CA1416
