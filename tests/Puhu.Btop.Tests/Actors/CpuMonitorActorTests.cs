@@ -30,7 +30,7 @@ public class CpuMonitorActorTests : IAsyncLifetime
         var actor = _sys.ActorOf(CpuMonitorActor.Props(_cpuMetrics, _sink));
 
         actor.Tell(new Tick(0, TimeSpan.FromMilliseconds(500)));
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         _sink.Received(1).Publish(Arg.Is<CpuSnapshot>(s =>
             s.Name == "Test CPU" && s.TotalPercent == 42.0 && s.CorePercents.Count == 4));
@@ -41,7 +41,7 @@ public class CpuMonitorActorTests : IAsyncLifetime
     {
         var actor = _sys.ActorOf(CpuMonitorActor.Props(_cpuMetrics, _sink));
 
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         _sink.DidNotReceive().Publish(Arg.Any<CpuSnapshot>());
     }

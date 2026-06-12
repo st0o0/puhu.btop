@@ -30,7 +30,7 @@ public class ProcessActionActorTests : IAsyncLifetime
 
         var actor = _sys.ActorOf(ProcessActionActor.Props(_treeProvider));
         var result = await actor.Ask<ProcessTreeResult>(
-            new GetProcessTree(1234), TimeSpan.FromSeconds(3));
+            new GetProcessTree(1234), TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
 
         Assert.Equal(1234, result.Pid);
         Assert.Equal("test.exe", result.Name);
@@ -41,7 +41,7 @@ public class ProcessActionActorTests : IAsyncLifetime
     {
         var actor = _sys.ActorOf(ProcessActionActor.Props(_treeProvider));
         var result = await actor.Ask<ActionFailure>(
-            new KillProcess(-1), TimeSpan.FromSeconds(3));
+            new KillProcess(-1), TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
 
         Assert.NotEmpty(result.Error);
     }

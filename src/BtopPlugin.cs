@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using Akka.Actor;
 using Microsoft.Extensions.DependencyInjection;
 using Puhu.Btop.Actors;
@@ -29,8 +28,14 @@ public sealed class BtopPlugin : IPuhuPlugin
             .WithActors((system, registry, resolver) =>
             {
                 var diskMetrics = resolver.GetService<IDiskMetrics>();
-                try { diskMetrics.Initialize(); }
-                catch { /* degraded: usage only, no I/O rates */ }
+                try
+                {
+                    diskMetrics.Initialize();
+                }
+                catch
+                {
+                    /* degraded: usage only, no I/O rates */
+                }
 
                 var supervisor = system.ActorOf(
                     MonitoringSupervisor.Props(
@@ -49,7 +54,7 @@ public sealed class BtopPlugin : IPuhuPlugin
                 // Bridge to host TickRouter: AlwaysOn — the supervisor does its own
                 // demand gating internally for its child monitors.
                 registry.Get<TickRouterKey>().Tell(
-                    new Puhu.Plugin.RegisterMonitor("btop", supervisor, AlwaysOn: true, MinInterval: null));
+                    new Plugin.RegisterMonitor("btop", supervisor, AlwaysOn: true, MinInterval: null));
             })
             .WithRoutes(termina =>
                 termina.RegisterRoute<BtopPage, BtopViewModel>("/btop"));
@@ -58,18 +63,20 @@ public sealed class BtopPlugin : IPuhuPlugin
     private static void RegisterPlatform(IServiceCollection services)
     {
         if (OperatingSystem.IsWindows())
-            AddWindowsPlatform(services);
+        {
+            Platform.Windows.ServiceCollectionExtensions.AddWindowsPlatform(services);
+        }
         else if (OperatingSystem.IsLinux())
+        {
             Platform.Linux.ServiceCollectionExtensions.AddLinuxPlatform(services);
+        }
         else if (OperatingSystem.IsMacOS())
+        {
             Platform.Mac.ServiceCollectionExtensions.AddMacPlatform(services);
+        }
 
         RegisterGpu(services);
     }
-
-    [SupportedOSPlatform("windows")]
-    private static void AddWindowsPlatform(IServiceCollection services) =>
-        Platform.Windows.ServiceCollectionExtensions.AddWindowsPlatform(services);
 
     private static void RegisterGpu(IServiceCollection services)
     {
@@ -77,14 +84,26 @@ public sealed class BtopPlugin : IPuhuPlugin
         try
         {
             var nvml = new NvmlGpuMetrics();
-            if (nvml.IsAvailable) gpu = nvml;
+            if (nvml.IsAvailable)
+            {
+                gpu = nvml;
+            }
         }
-        catch { /* no NVIDIA GPU — no GPU box */ }
+        catch
+        {
+            /* no NVIDIA GPU — no GPU box */
+        }
 
         if (!gpu.IsAvailable && OperatingSystem.IsMacOS())
         {
-            try { gpu = new Platform.Mac.MacGpuMetrics(); }
-            catch { /* no Apple GPU box */ }
+            try
+            {
+                gpu = new Platform.Mac.MacGpuMetrics();
+            }
+            catch
+            {
+                /* no Apple GPU box */
+            }
         }
 
         services.AddSingleton(gpu);

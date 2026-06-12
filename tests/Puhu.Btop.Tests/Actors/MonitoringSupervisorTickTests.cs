@@ -37,7 +37,7 @@ public class MonitoringSupervisorTickTests : IAsyncLifetime
         router.Tell(new Tick(1, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(2, TimeSpan.FromMilliseconds(1000)));
 
-        await Task.Delay(300);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
 
         Assert.Equal(3, received.Count);
     }
@@ -54,9 +54,9 @@ public class MonitoringSupervisorTickTests : IAsyncLifetime
         router.Tell(new Tick(0, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(1, TimeSpan.FromMilliseconds(1000)));
 
-        await Task.Delay(300);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, received.Count);
+        Assert.Empty(received);
     }
 
     [Fact]
@@ -70,21 +70,21 @@ public class MonitoringSupervisorTickTests : IAsyncLifetime
 
         // Raise demand
         router.Tell(new DemandChanged(MetricKind.Network, +1));
-        await Task.Delay(100); // allow demand message to be processed
+        await Task.Delay(100, TestContext.Current.CancellationToken); // allow demand message to be processed
 
         router.Tell(new Tick(0, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(1, TimeSpan.FromMilliseconds(1000)));
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, received.Count);
 
         // Drop demand
         router.Tell(new DemandChanged(MetricKind.Network, -1));
-        await Task.Delay(100); // allow demand message to be processed
+        await Task.Delay(100, TestContext.Current.CancellationToken); // allow demand message to be processed
 
         router.Tell(new Tick(2, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(3, TimeSpan.FromMilliseconds(1000)));
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, received.Count); // no new ticks forwarded
     }
@@ -104,7 +104,7 @@ public class MonitoringSupervisorTickTests : IAsyncLifetime
             router.Tell(new Tick(seq, TimeSpan.FromMilliseconds(1000)));
         }
 
-        await Task.Delay(400);
+        await Task.Delay(400, TestContext.Current.CancellationToken);
 
         // Should receive seq 0, 3, 6 only (3 ticks)
         Assert.Equal(3, received.Count);
