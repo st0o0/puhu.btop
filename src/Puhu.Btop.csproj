@@ -4,8 +4,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Puhu.Btop</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Puhu.Plugin" Version="*" />
+    <ProjectReference Include="..\lib\puhu\src\Puhu.Plugin\Puhu.Plugin.csproj" />
   </ItemGroup>
 </Project>
