@@ -1,4 +1,7 @@
 using System.Reflection;
+using Akka.Actor;
+using Akka.Hosting;
+using Puhu.Btop.Actors;
 using Puhu.Btop.Core.Messages;
 using Puhu.Btop.Core.Models;
 using Puhu.Btop.Core.Platform;
@@ -11,8 +14,12 @@ using Termina.Reactive;
 
 namespace Puhu.Btop.Tests.Pages;
 
-public class BtopViewModelTests
+public class BtopViewModelTests : IDisposable
 {
+    private readonly ActorSystem _system = ActorSystem.Create("btop-vm-tests");
+
+    public void Dispose() => _system.Dispose();
+
     // ── Fakes ────────────────────────────────────────────────────────────────
 
     private sealed class FakeSettingsStore : ISettingsStore
@@ -61,22 +68,42 @@ public class BtopViewModelTests
         public IDisposable Subscribe(Action onTick) => Disposable.Empty;
     }
 
+    /// <summary>
+    /// IRequiredActor whose ref is an <see cref="Inbox"/> receiver, so messages the
+    /// VM tells the supervisor land in a queue the test can assert on — a real
+    /// behavioural probe, not a self-asserting mock.
+    /// </summary>
+    private sealed class ProbeRequiredActor(IActorRef probe) : IRequiredActor<MonitoringSupervisor>
+    {
+        public IActorRef ActorRef => probe;
+        public Task<IActorRef> GetAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(probe);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static BtopViewModel CreateVm(
+    private static KeyPressed Key(ConsoleKey key, char ch = '\0') =>
+        new(new ConsoleKeyInfo(ch, key, false, false, false));
+
+    private BtopViewModel CreateVm(
         out FakeSettingsStore settings,
         out CountingDemand demand,
+        out Subject<IInputEvent> input,
+        out Inbox supervisorInbox,
         MetricStore? store = null,
         IGpuMetrics? gpu = null)
     {
         settings = new FakeSettingsStore();
         demand = new CountingDemand();
+        input = new Subject<IInputEvent>();
+        supervisorInbox = Inbox.Create(_system);
         var vm = new BtopViewModel(
             store ?? new MetricStore(),
             demand,
             gpu ?? NoGpuMetrics.Instance,
             settings,
-            new FakeTickSource());
+            new FakeTickSource(),
+            new ProbeRequiredActor(supervisorInbox.Receiver));
 
         // The framework wires Input via an internal WireUp call when binding to a
         // page. Tests don't go through a page, so wire an empty input stream by
@@ -89,11 +116,14 @@ public class BtopViewModelTests
             (Action<string, object?>)((_, _) => { }),
             (Action)(() => { }),
             (Action)(() => { }),
-            Observable.Empty<IInputEvent>(),
+            input.AsObservable(),
         });
 
         return vm;
     }
+
+    private BtopViewModel CreateVm(out FakeSettingsStore settings, out CountingDemand demand) =>
+        CreateVm(out settings, out demand, out _, out _);
 
     // ── Tests ────────────────────────────────────────────────────────────────
 
@@ -174,6 +204,117 @@ public class BtopViewModelTests
         vm.Dispose();
     }
 
-    private static ProcessSnapshot Proc(int pid, string name) =>
-        new(pid, name, ProcessGroup.Apps, 1.0, 1024L * 1024, 0, 0, 1, 1, "user", 0);
+    [Fact]
+    public void ToggleTreeMode_FlipsAndPersists()
+    {
+        var vm = CreateVm(out var settings, out _, out var input, out _);
+        vm.OnActivated();
+
+        Assert.False(vm.TreeMode.Value);
+
+        // 'e' toggles tree mode on.
+        input.OnNext(Key(ConsoleKey.E));
+        Assert.True(vm.TreeMode.Value);
+        Assert.True((bool)settings.Values["tree-mode"]!);
+
+        // 'e' again toggles it off.
+        input.OnNext(Key(ConsoleKey.E));
+        Assert.False(vm.TreeMode.Value);
+        Assert.False((bool)settings.Values["tree-mode"]!);
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void TreeMode_OrdersChildrenUnderParentsWithDepth()
+    {
+        var vm = CreateVm(out _, out _, out _, out _);
+        vm.OnActivated();
+
+        // 1 ── 2 ── 3   and a standalone root 4
+        vm.AllProcesses.Value = new List<ProcessSnapshot>
+        {
+            Proc(3, "grandchild", ppid: 2),
+            Proc(1, "root", ppid: 1),
+            Proc(2, "child", ppid: 1),
+            Proc(4, "other", ppid: 4),
+        };
+        vm.TreeMode.Value = true;
+
+        var ordered = vm.GetFilteredProcesses();
+        var pids = ordered.Select(p => p.Pid).ToList();
+
+        // Parent precedes its descendants.
+        Assert.True(pids.IndexOf(1) < pids.IndexOf(2));
+        Assert.True(pids.IndexOf(2) < pids.IndexOf(3));
+        Assert.Equal(0, vm.GetTreeDepth(1));
+        Assert.Equal(1, vm.GetTreeDepth(2));
+        Assert.Equal(2, vm.GetTreeDepth(3));
+        Assert.Equal(0, vm.GetTreeDepth(4));
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void ArrowKeys_CycleSortFieldThroughAllColumnsAndPersist()
+    {
+        var vm = CreateVm(out var settings, out _, out var input, out _);
+        vm.OnActivated();
+
+        Assert.Equal(BtopSortField.CpuPercent, vm.SortField.Value);
+
+        // Right cycles forward through every column and wraps.
+        input.OnNext(Key(ConsoleKey.RightArrow));
+        Assert.Equal(BtopSortField.RamPercent, vm.SortField.Value);
+        Assert.Equal((int)BtopSortField.RamPercent, settings.Get<int?>("sort-field"));
+
+        input.OnNext(Key(ConsoleKey.RightArrow));
+        Assert.Equal(BtopSortField.Name, vm.SortField.Value);
+        input.OnNext(Key(ConsoleKey.RightArrow));
+        Assert.Equal(BtopSortField.Pid, vm.SortField.Value);
+        input.OnNext(Key(ConsoleKey.RightArrow));
+        Assert.Equal(BtopSortField.CpuPercent, vm.SortField.Value);
+
+        // Left cycles backward, wrapping to the last column.
+        input.OnNext(Key(ConsoleKey.LeftArrow));
+        Assert.Equal(BtopSortField.Pid, vm.SortField.Value);
+        Assert.Equal((int)BtopSortField.Pid, settings.Get<int?>("sort-field"));
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void KillConfirm_ConfirmDispatchesKill_CancelSendsNothing()
+    {
+        var vm = CreateVm(out _, out _, out var input, out var supervisor);
+        var selected = Proc(4321, "victim");
+        vm.GetSelectedProcess = () => selected;
+        vm.OnActivated();
+
+        // 'k' stages a pending confirmation — no command sent yet.
+        input.OnNext(Key(ConsoleKey.K));
+        Assert.NotNull(vm.PendingAction.Value);
+        Assert.Equal(4321, vm.PendingAction.Value!.Pid);
+
+        // 'n' cancels — pending cleared, nothing dispatched.
+        input.OnNext(Key(ConsoleKey.N));
+        Assert.Null(vm.PendingAction.Value);
+
+        // 'k' then 'y' confirms — a KillProcess for the selected pid is dispatched.
+        input.OnNext(Key(ConsoleKey.K));
+        input.OnNext(Key(ConsoleKey.Y));
+        Assert.Null(vm.PendingAction.Value);
+
+        // The supervisor probe receives exactly the kill — and only the kill
+        // (the earlier cancel sent nothing, so this is the first/only message).
+        var msg = supervisor.Receive(TimeSpan.FromSeconds(3));
+        var kill = Assert.IsType<KillProcess>(msg);
+        Assert.Equal(4321, kill.Pid);
+        Assert.Throws<TimeoutException>(() => supervisor.Receive(TimeSpan.FromMilliseconds(200)));
+
+        vm.Dispose();
+    }
+
+    private static ProcessSnapshot Proc(int pid, string name, int ppid = 0) =>
+        new(pid, name, ProcessGroup.Apps, 1.0, 1024L * 1024, 0, 0, 1, 1, "user", ppid);
 }

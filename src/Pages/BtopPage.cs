@@ -56,7 +56,11 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             p =>
             {
                 var ramMb = p.WorkingSetBytes / 1024 / 1024;
-                var name = p.Name.Length > 22 ? p.Name[..21] + "…" : p.Name;
+                var depth = ViewModel.GetTreeDepth(p.Pid);
+                var indent = depth > 0 ? new string(' ', depth * 2) : "";
+                var budget = Math.Max(4, 22 - indent.Length);
+                var rawName = p.Name.Length > budget ? p.Name[..(budget - 1)] + "…" : p.Name;
+                var name = $"{indent}{rawName}";
                 var ramStr = ramMb >= 1024 ? $"{ramMb / 1024.0,4:F1}GB" : $"{ramMb,4}MB";
                 return $" {p.Pid,6}  {name,-22} {p.CpuPercent,5:F1}%  {ramStr,7}";
             },
@@ -69,6 +73,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
         _processList.WithHighlightColors(_theme.Current.SelectionText, _theme.Current.Selection);
 
         ViewModel.ProcessListNode = _processList;
+        ViewModel.GetSelectedProcess = () => _processList.SelectedItem;
 
         return Layouts.Vertical()
             .WithChild(ViewModel.ActivePreset
@@ -119,7 +124,8 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                 ViewModel.AllProcesses.Select(_ => Unit.Default),
                 ViewModel.ProcessFilter.Select(_ => Unit.Default),
                 ViewModel.SortField.Select(_ => Unit.Default),
-                ViewModel.SortDescending.Select(_ => Unit.Default))
+                ViewModel.SortDescending.Select(_ => Unit.Default),
+                ViewModel.TreeMode.Select(_ => Unit.Default))
             .Subscribe(_ => _processList?.SetItems(ViewModel.GetFilteredProcesses()))
             .DisposeWith(Subscriptions);
     }

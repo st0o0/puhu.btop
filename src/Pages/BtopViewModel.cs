@@ -1,3 +1,6 @@
+using Akka.Actor;
+using Akka.Hosting;
+using Puhu.Btop.Actors;
 using Puhu.Btop.Core.Messages;
 using Puhu.Btop.Core.Models;
 using Puhu.Btop.Core.Platform;
@@ -13,6 +16,9 @@ namespace Puhu.Btop.Pages;
 
 public enum BtopSortField { CpuPercent, RamPercent, Name, Pid }
 
+/// <summary>A process action awaiting y/n confirmation (terminate or kill).</summary>
+public sealed record PendingProcessAction(int Pid, string ProcessName, string Verb);
+
 public class BtopViewModel : ReactiveViewModel
 {
     private readonly MetricStore _store;
@@ -20,7 +26,9 @@ public class BtopViewModel : ReactiveViewModel
     private readonly IGpuMetrics _gpuMetrics;
     private readonly ISettingsStore _settings;
     private readonly ITickSource _tickSource;
+    private readonly IRequiredActor<MonitoringSupervisor> _supervisor;
     private readonly List<IDisposable> _demandHandles = [];
+    private IActorRef? _supervisorActor;
 
     // ── Metrics ─────────────────────────────────────────────────────────────
     public ReactiveProperty<double> CpuTotal { get; } = new(0);
@@ -44,6 +52,13 @@ public class BtopViewModel : ReactiveViewModel
     public ReactiveProperty<int> ActivePreset { get; }
     public ReactiveProperty<string> StatusHint { get; } = new("");
 
+    // Tree (process hierarchy) presentation toggle — built client-side from the
+    // flat process list + ParentPid, no actor round-trip required.
+    public ReactiveProperty<bool> TreeMode { get; }
+
+    // Pending terminate/kill action awaiting y/n confirmation. Null when none.
+    public ReactiveProperty<PendingProcessAction?> PendingAction { get; } = new(null);
+
     // Panel visibility toggles (1–4 keys)
     public ReactiveProperty<bool> ShowCpu { get; }
     public ReactiveProperty<bool> ShowMemory { get; }
@@ -55,6 +70,9 @@ public class BtopViewModel : ReactiveViewModel
     // ListNode reference set by BtopPage so arrow keys can scroll it
     public IScrollableList? ProcessListNode { get; set; }
 
+    // Set by BtopPage so terminate/kill can target the highlighted row.
+    public Func<ProcessSnapshot?>? GetSelectedProcess { get; set; }
+
     public MetricStore Store => _store;
 
     private static readonly string[] PresetNames = ["Standard", "CPU Focus", "Resource Grid", "Minimal"];
@@ -64,13 +82,17 @@ public class BtopViewModel : ReactiveViewModel
         IMonitorDemand demand,
         IGpuMetrics gpuMetrics,
         ISettingsStore settings,
-        ITickSource tickSource)
+        ITickSource tickSource,
+        IRequiredActor<MonitoringSupervisor> supervisor)
     {
         _store = store;
         _demand = demand;
         _gpuMetrics = gpuMetrics;
         _settings = settings;
         _tickSource = tickSource;
+        _supervisor = supervisor;
+
+        TreeMode = new ReactiveProperty<bool>(settings.Get<bool?>("tree-mode") ?? false);
 
         ActivePreset = new ReactiveProperty<int>(
             Math.Clamp(settings.Get<int?>("preset") ?? 0, 0, 3));
@@ -167,15 +189,40 @@ public class BtopViewModel : ReactiveViewModel
 
         UpdateStatusHint();
 
+        var resolve = _supervisor.GetAsync(CancellationToken.None);
+        if (resolve.IsCompletedSuccessfully)
+            _supervisorActor = resolve.Result;
+        else
+            _ = ResolveSupervisorAsync(resolve);
+
         Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(HandleKey)
             .DisposeWith(Subscriptions);
+    }
+
+    private async Task ResolveSupervisorAsync(Task<IActorRef> resolve)
+    {
+        try
+        {
+            _supervisorActor = await resolve;
+        }
+        catch
+        {
+            // Supervisor unavailable — terminate/kill will be no-ops until resolved.
+        }
     }
 
     private void PersistShow(string key, bool value) => _settings.Set(key, value);
 
     private void UpdateStatusHint()
     {
+        if (PendingAction.Value is { } pending)
+        {
+            StatusHint.Value =
+                $" {pending.Verb} PID {pending.Pid} ({pending.ProcessName})?  [y] Confirm  [n/Esc] Cancel";
+            return;
+        }
+
         if (IsFilterMode.Value)
         {
             StatusHint.Value = ProcessFilter.Value.Length > 0
@@ -189,11 +236,12 @@ public class BtopViewModel : ReactiveViewModel
         var ramTotalGb = RamTotal.Value / 1024.0 / 1024 / 1024;
         var ram = $"RAM: {ramUsedGb:F1}/{ramTotalGb:F1} GiB";
         var layout = $"Layout: {PresetNames[ActivePreset.Value]}";
-        var sort = $"[M] Sort: {SortField.Value}";
+        var sort = $"[←→] Sort: {SortField.Value}";
         var dir = SortDescending.Value ? "↓" : "↑";
+        var tree = TreeMode.Value ? "[e] Tree:on" : "[e] Tree:off";
         var rate = $"{_tickSource.CurrentInterval.TotalMilliseconds:F0}ms";
         StatusHint.Value =
-            $" {cpu}  {ram}  |  {layout}  |  [F] Filter  [P] Preset  {sort}  [R] {dir}  |  {rate}";
+            $" {cpu}  {ram}  |  {layout}  |  [F] Filter  [P] Preset  {sort}  [R] {dir}  {tree}  |  {rate}";
     }
 
     public IReadOnlyList<ProcessSnapshot> GetFilteredProcesses()
@@ -224,7 +272,59 @@ public class BtopViewModel : ReactiveViewModel
             _ => source.OrderByDescending(p => p.CpuPercent)
         };
 
-        return source.ToList();
+        var list = source.ToList();
+        return TreeMode.Value ? OrderAsTree(list) : list;
+    }
+
+    // Maps pid → indentation depth for the most recent tree-ordered list.
+    // Used by the page to indent process names when TreeMode is on.
+    private readonly Dictionary<int, int> _treeDepth = new();
+
+    public int GetTreeDepth(int pid) =>
+        TreeMode.Value && _treeDepth.TryGetValue(pid, out var d) ? d : 0;
+
+    /// <summary>
+    /// Re-orders a flat process list into parent-then-children order using
+    /// <see cref="ProcessSnapshot.ParentPid"/>, recording each row's depth in
+    /// <see cref="_treeDepth"/>. Built entirely client-side — no actor query.
+    /// Relative ordering among siblings (and roots) follows the incoming sort.
+    /// </summary>
+    private List<ProcessSnapshot> OrderAsTree(List<ProcessSnapshot> flat)
+    {
+        _treeDepth.Clear();
+        var present = flat.Select(p => p.Pid).ToHashSet();
+        var childrenByParent = flat
+            .Where(p => p.ParentPid != p.Pid && present.Contains(p.ParentPid))
+            .GroupBy(p => p.ParentPid)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var ordered = new List<ProcessSnapshot>(flat.Count);
+        var visited = new HashSet<int>();
+
+        void Emit(ProcessSnapshot proc, int depth)
+        {
+            if (!visited.Add(proc.Pid)) return; // guard against cycles
+            _treeDepth[proc.Pid] = depth;
+            ordered.Add(proc);
+            if (childrenByParent.TryGetValue(proc.Pid, out var kids))
+            {
+                foreach (var kid in kids) Emit(kid, depth + 1);
+            }
+        }
+
+        // Roots: processes whose parent isn't in the visible set.
+        foreach (var proc in flat.Where(p => p.ParentPid == p.Pid || !present.Contains(p.ParentPid)))
+        {
+            Emit(proc, 0);
+        }
+
+        // Safety net: emit any process not reached (e.g. orphaned by cycle guard).
+        foreach (var proc in flat.Where(p => !visited.Contains(p.Pid)))
+        {
+            Emit(proc, 0);
+        }
+
+        return ordered;
     }
 
     private void HandleKey(KeyPressed key)
@@ -235,8 +335,38 @@ public class BtopViewModel : ReactiveViewModel
             return;
         }
 
+        // A terminate/kill confirmation is pending: only y/n/Esc matter.
+        if (PendingAction.Value is { } pending)
+        {
+            HandleConfirmKey(key, pending);
+            return;
+        }
+
         switch (key.KeyInfo.Key)
         {
+            // Tree presentation toggle (built client-side from ParentPid).
+            case ConsoleKey.E:
+                TreeMode.Value = !TreeMode.Value;
+                _settings.Set("tree-mode", TreeMode.Value);
+                UpdateStatusHint();
+                break;
+
+            // Cycle the active sort column with the arrow keys.
+            case ConsoleKey.LeftArrow:
+                ShiftSortField(-1);
+                break;
+            case ConsoleKey.RightArrow:
+                ShiftSortField(+1);
+                break;
+
+            // Terminate / kill the selected process (confirm first).
+            case ConsoleKey.T:
+                RequestProcessAction("Terminate");
+                break;
+            case ConsoleKey.K:
+                RequestProcessAction("Kill");
+                break;
+
             case ConsoleKey.P:
                 var next = (ActivePreset.Value + 1) % 4;
                 ActivePreset.Value = next;
@@ -293,6 +423,46 @@ public class BtopViewModel : ReactiveViewModel
         };
         _settings.Set("sort-field", (int)SortField.Value);
         UpdateStatusHint();
+    }
+
+    /// <summary>Cycle the active sort column left (-1) or right (+1), wrapping.</summary>
+    public void ShiftSortField(int direction)
+    {
+        var count = Enum.GetValues<BtopSortField>().Length;
+        var next = ((int)SortField.Value + direction + count) % count;
+        SortField.Value = (BtopSortField)next;
+        _settings.Set("sort-field", (int)SortField.Value);
+        UpdateStatusHint();
+    }
+
+    /// <summary>
+    /// Stage a terminate/kill confirmation for the selected process. On Windows
+    /// there is no SIGTERM/SIGKILL distinction (<see cref="System.Diagnostics.Process.Kill()"/>
+    /// is the only option), so both verbs dispatch the same <see cref="KillProcess"/>
+    /// command; the verb only changes the confirmation prompt.
+    /// </summary>
+    public void RequestProcessAction(string verb)
+    {
+        if (GetSelectedProcess?.Invoke() is not { } proc) return;
+        PendingAction.Value = new PendingProcessAction(proc.Pid, proc.Name, verb);
+        UpdateStatusHint();
+    }
+
+    private void HandleConfirmKey(KeyPressed key, PendingProcessAction pending)
+    {
+        switch (key.KeyInfo.Key)
+        {
+            case ConsoleKey.Y:
+                _supervisorActor?.Tell(new KillProcess(pending.Pid), ActorRefs.NoSender);
+                PendingAction.Value = null;
+                UpdateStatusHint();
+                break;
+            case ConsoleKey.N:
+            case ConsoleKey.Escape:
+                PendingAction.Value = null;
+                UpdateStatusHint();
+                break;
+        }
     }
 
     private void HandleFilterKey(KeyPressed key)
@@ -376,6 +546,8 @@ public class BtopViewModel : ReactiveViewModel
         ShowMemory.Dispose();
         ShowNetDisk.Dispose();
         ShowProcesses.Dispose();
+        TreeMode.Dispose();
+        PendingAction.Dispose();
         base.Dispose();
     }
 }
