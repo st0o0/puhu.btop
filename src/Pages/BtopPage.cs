@@ -37,17 +37,17 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
         _cpuGraph = new GraphNode(intervalMs: 0)
             .WithStyle(graphStyle)
-            .WithColor(theme.Accent)
+            .WithGradient(theme.GraphGradient)
             .WithRange(0, 100);
 
         _ramGraph = new GraphNode(intervalMs: 0)
             .WithStyle(graphStyle)
-            .WithColor(theme.Warning)
+            .WithGradient(theme.GraphGradient)
             .WithRange(0, 100);
 
         _gpuGraph = new GraphNode(intervalMs: 0)
             .WithStyle(graphStyle)
-            .WithColor(theme.PanelTitle)
+            .WithGradient(theme.GraphGradient)
             .WithRange(0, 100);
 
         _coresNode = new CpuCoresNode();
@@ -89,6 +89,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             () => ViewModel.RequestShutdown(),
             path => Navigate(path),
             _tabNavigator);
+
+        // Live theme re-render: theme colors/gradient are baked into nodes at
+        // BuildLayout time, so a theme change requires rebuilding the layout tree.
+        _theme.Changes
+            .Subscribe(_ => InvalidateLayout())
+            .DisposeWith(Subscriptions);
 
         ViewModel.Store.Cpu.Subscribe(s =>
         {
