@@ -1,0 +1,15 @@
+{
+  "id": "puhu.plugin.myplugin",
+  "name": "MyPlugin",
+  "description": "A Puhu plugin",
+  "author": "your-name",
+  "version": "0.1.0",
+  "minPuhuVersion": "1.0.0",
+  "license": "MIT",
+  "repository": "https://github.com/your-org/puhu.plugin.myplugin",
+  "delivery": {
+    "type": "github-release",
+    "asset": "Puhu.Plugin.MyPlugin.dll"
+  },
+  "tags": []
+}

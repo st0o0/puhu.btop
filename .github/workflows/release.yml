@@ -1,0 +1,65 @@
+name: Release & Publish
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          target-branch: ${{ github.ref_name }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build-and-publish:
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore src/Puhu.Plugin.MyPlugin.csproj
+
+      - name: Build
+        run: >
+          dotnet build
+          --configuration Release
+          --no-restore
+          src/Puhu.Plugin.MyPlugin.csproj
+          /p:Version=${{ needs.release-please.outputs.version }}
+
+      - name: Publish
+        run: >
+          dotnet publish
+          --configuration Release
+          --no-build
+          --output ./publish
+          src/Puhu.Plugin.MyPlugin.csproj
+
+      - name: Attach DLL to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: ./publish/Puhu.Plugin.MyPlugin.dll
