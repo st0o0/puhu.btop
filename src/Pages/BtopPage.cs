@@ -357,11 +357,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildCpuPanel()
     {
         var theme = _theme.Current;
-        return new PanelNode()
-            .WithTitle(" CPU ")
-            .WithBorder(BorderStyle.Rounded)
+        return new BtopBoxNode()
+            .WithTitle("cpu")
+            .WithHotkey(1)
             .WithBorderColor(theme.Accent)
             .WithTitleColor(theme.PanelTitle)
+            .WithHighlightColor(theme.Accent)
             .WithContent(
                 Layouts.Vertical()
                     .WithChild(
@@ -378,11 +379,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildCpuStripPanel()
     {
         var theme = _theme.Current;
-        return new PanelNode()
-            .WithTitle(" CPU ")
-            .WithBorder(BorderStyle.Rounded)
+        return new BtopBoxNode()
+            .WithTitle("cpu")
+            .WithHotkey(1)
             .WithBorderColor(theme.Accent)
             .WithTitleColor(theme.PanelTitle)
+            .WithHighlightColor(theme.Accent)
             .WithContent(
                 ViewModel.CpuTotal
                     .Select<double, ILayoutNode>(pct =>
@@ -395,11 +397,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildMemoryPanel()
     {
         var theme = _theme.Current;
-        return new PanelNode()
-            .WithTitle(" RAM ")
-            .WithBorder(BorderStyle.Rounded)
+        return new BtopBoxNode()
+            .WithTitle("mem")
+            .WithHotkey(2)
             .WithBorderColor(theme.Warning)
             .WithTitleColor(theme.PanelTitle)
+            .WithHighlightColor(theme.Accent)
             .WithContent(
                 Layouts.Vertical()
                     .WithChild(
@@ -420,11 +423,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildGpuPanel()
     {
         var theme = _theme.Current;
-        return new PanelNode()
-            .WithTitle(" GPU ")
-            .WithBorder(BorderStyle.Rounded)
+        return new BtopBoxNode()
+            .WithTitle("gpu")
+            .WithHotkey(5)
             .WithBorderColor(theme.PanelTitle)
             .WithTitleColor(theme.PanelTitle)
+            .WithHighlightColor(theme.Accent)
             .WithContent(
                 Layouts.Vertical()
                     .WithChild(
@@ -453,11 +457,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildNetDiskPanel()
     {
         var theme = _theme.Current;
-        return new PanelNode()
-            .WithTitle(" NET/DISK ")
-            .WithBorder(BorderStyle.Rounded)
+        return new BtopBoxNode()
+            .WithTitle("net")
+            .WithHotkey(3)
             .WithBorderColor(theme.Success)
             .WithTitleColor(theme.PanelTitle)
+            .WithHighlightColor(theme.Accent)
             .WithContent(
                 ViewModel.Networks.CombineLatest<IReadOnlyList<NetworkSnapshot>, IReadOnlyList<DiskSnapshot>, ILayoutNode>(
                     ViewModel.Disks,
@@ -510,11 +515,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             .WithForeground(theme.Header)
             .Height(1);
 
-        return new PanelNode()
-            .WithTitle(" PROCESSES ")
-            .WithBorder(BorderStyle.Rounded)
+        return new BtopBoxNode()
+            .WithTitle("proc")
+            .WithHotkey(4)
             .WithBorderColor(theme.Accent)
             .WithTitleColor(theme.PanelTitle)
+            .WithHighlightColor(theme.Accent)
             .WithContent(
                 Layouts.Vertical()
                     .WithChild(header)
