@@ -13,7 +13,7 @@ namespace Puhu.Btop.Nodes;
 public sealed class CoreMeterNode : LayoutNode, IInvalidatingNode
 {
     private const int MeterWidth = 6;  // filled+empty cells in each core's bar
-    private const int ItemWidth = 22;  // "C12 ■■■■■■ 100% " — fits 1 per 40-col panel
+    private const int ItemWidth = 16;  // " C12 ■■■■■■ 100% "
 
     private readonly Subject<Unit> _invalidated = new();
     private IReadOnlyList<double> _cores = [];

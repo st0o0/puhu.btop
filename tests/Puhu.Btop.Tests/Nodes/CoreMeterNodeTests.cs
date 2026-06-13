@@ -35,16 +35,22 @@ public class CoreMeterNodeTests
     [Fact]
     public void Higher_percent_fills_more_cells_than_lower_percent()
     {
-        var node = new CoreMeterNode();
-        node.SetCores([10.0, 90.0]);
-
-        var ctx = new TestRenderContext(40, 4);
-        node.Measure(new Size(40, 4));
-        node.Render(ctx, new Rect(0, 0, 40, 4));
-
         var fill = BtopGradients.MeterFill;
-        var core0Fill = ctx.Cells.Where(c => c.Y == 0).SelectMany(c => c.Text).Count(ch => ch == fill);
-        var core1Fill = ctx.Cells.Where(c => c.Y == 1).SelectMany(c => c.Text).Count(ch => ch == fill);
-        Assert.True(core1Fill > core0Fill);
+
+        var low = new CoreMeterNode();
+        low.SetCores([10.0]);
+        var lowCtx = new TestRenderContext(40, 4);
+        low.Measure(new Size(40, 4));
+        low.Render(lowCtx, new Rect(0, 0, 40, 4));
+        var lowFill = lowCtx.Cells.SelectMany(c => c.Text).Count(ch => ch == fill);
+
+        var high = new CoreMeterNode();
+        high.SetCores([90.0]);
+        var highCtx = new TestRenderContext(40, 4);
+        high.Measure(new Size(40, 4));
+        high.Render(highCtx, new Rect(0, 0, 40, 4));
+        var highFill = highCtx.Cells.SelectMany(c => c.Text).Count(ch => ch == fill);
+
+        Assert.True(highFill > lowFill);
     }
 }
