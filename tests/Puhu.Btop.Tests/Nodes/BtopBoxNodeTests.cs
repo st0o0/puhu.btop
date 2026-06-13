@@ -70,4 +70,23 @@ public class BtopBoxNodeTests
         // Inner content origin (0,0) maps to outer (1,1), just inside the top-left border.
         Assert.Equal("X", ctx.Row(1).Substring(1, 1));
     }
+
+    [Fact]
+    public void Center_title_is_drawn_centered_in_top_border()
+    {
+        var box = new BtopBoxNode().WithTitle("cpu").WithHotkey(1).WithCenterTitle("14:32:07");
+        var (ctx, _) = Render(box, 40, 3);
+
+        var top = ctx.Row(0);
+        Assert.Contains("┤ 14:32:07 ├", top);
+    }
+
+    [Fact]
+    public void Center_title_is_omitted_when_box_too_narrow()
+    {
+        var box = new BtopBoxNode().WithTitle("cpu").WithHotkey(1).WithCenterTitle("14:32:07");
+        var (ctx, _) = Render(box, 16, 3);
+
+        Assert.DoesNotContain("14:32:07", ctx.Row(0));
+    }
 }
