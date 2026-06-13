@@ -37,4 +37,4 @@ jobs:
         run: dotnet build --configuration Release --no-restore src/Puhu.Btop/Puhu.Btop.csproj
 
       - name: Test
-        run: dotnet test --configuration Release src/Puhu.Btop.Tests
+        run: dotnet test --project src/Puhu.Btop.Tests/Puhu.Btop.Tests.csproj --configuration Release
