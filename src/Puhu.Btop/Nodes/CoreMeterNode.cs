@@ -73,7 +73,7 @@ public sealed class CoreMeterNode : LayoutNode, IInvalidatingNode
             {
                 if (c < filled)
                 {
-                    var t = MeterWidth > 1 ? c / (float)(MeterWidth - 1) : 0f;
+                    var t = c / (float)(MeterWidth - 1);
                     ctx.SetForeground(_gradient.Sample(t));
                     ctx.WriteAt(bx + c, row, BtopGradients.MeterFill);
                 }

@@ -10,7 +10,7 @@
     <PackageReference Include="NSubstitute" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Puhu.Btop.csproj" />
+    <ProjectReference Include="..\Puhu.Btop\Puhu.Btop.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

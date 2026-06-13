@@ -91,12 +91,6 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
         var w = bounds.Width;
         var h = bounds.Height;
 
-        void Border(Color? c)
-        {
-            if (c.HasValue) ctx.SetForeground(c.Value);
-            else ctx.ResetColors();
-        }
-
         // Top-left corner.
         Border(_borderColor);
         ctx.WriteAt(0, 0, TopLeft);
@@ -178,6 +172,14 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
         {
             var contentCtx = ctx.CreateSubContext(contentBounds);
             _content.Render(contentCtx, new Rect(0, 0, contentBounds.Width, contentBounds.Height));
+        }
+
+        return;
+
+        void Border(Color? c)
+        {
+            if (c.HasValue) ctx.SetForeground(c.Value);
+            else ctx.ResetColors();
         }
     }
 

@@ -27,9 +27,9 @@ public sealed class DataListNode<T>(Func<T, string> formatter, Func<T, Color>? c
 
     private Color _selectedFg = Color.Black;
     private Color _selectedBg = Color.Cyan;
-    private Color _background = Color.Default;
-    private Color _foreground = Color.White;
-    private Color _scrollbarTrack = Color.Gray;
+    private readonly Color _background = Color.Default;
+    private readonly Color _foreground = Color.White;
+    private readonly Color _scrollbarTrack = Color.Gray;
 
     public Observable<Unit> Invalidated => _invalidated.AsObservable();
 

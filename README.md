@@ -49,6 +49,6 @@ git submodule update --init --recursive
 Then build and test:
 
 ```bash
-dotnet build src/Puhu.Btop.csproj
-dotnet test tests/Puhu.Btop.Tests
+dotnet build src/Puhu.Btop.slnx
+dotnet test src/Puhu.Btop.Tests
 ```
