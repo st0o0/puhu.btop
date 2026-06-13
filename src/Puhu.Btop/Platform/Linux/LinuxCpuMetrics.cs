@@ -30,7 +30,9 @@ public sealed class LinuxCpuMetrics : ICpuMetrics
             }
 
             if (_state.CoreIdle is null)
+            {
                 _state = CpuCalculator.State.Initial(coreCount);
+            }
 
             var result = CpuCalculator.Calculate(idle, total, coreIdle, coreTotal, _state);
             _state = result.NextState;
@@ -46,14 +48,18 @@ public sealed class LinuxCpuMetrics : ICpuMetrics
     {
         var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 5)
+        {
             return (0, 0);
+        }
 
         long user = long.Parse(parts[1]), nice = long.Parse(parts[2]);
         long system = long.Parse(parts[3]), idle = long.Parse(parts[4]);
         var total = user + nice + system + idle;
         for (var j = 5; j < Math.Min(parts.Length, 8); j++)
             if (long.TryParse(parts[j], out var v))
+            {
                 total += v;
+            }
 
         return (idle, total);
     }

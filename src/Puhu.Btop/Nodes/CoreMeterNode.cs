@@ -28,7 +28,10 @@ public sealed class CoreMeterNode : LayoutNode, IInvalidatingNode
     public void SetCores(IReadOnlyList<double> cores)
     {
         _cores = cores;
-        if (!_disposed) _invalidated.OnNext(Unit.Default);
+        if (!_disposed)
+        {
+            _invalidated.OnNext(Unit.Default);
+        }
     }
 
     public override Size Measure(Size available)
@@ -47,7 +50,10 @@ public sealed class CoreMeterNode : LayoutNode, IInvalidatingNode
 
     public override void Render(IRenderContext context, Rect bounds)
     {
-        if (!bounds.HasArea || _cores.Count == 0) return;
+        if (!bounds.HasArea || _cores.Count == 0)
+        {
+            return;
+        }
 
         var ctx = context.CreateSubContext(bounds);
         var perRow = Math.Max(1, bounds.Width / ItemWidth);
@@ -56,7 +62,10 @@ public sealed class CoreMeterNode : LayoutNode, IInvalidatingNode
         {
             var row = i / perRow;
             var col = i % perRow;
-            if (row >= bounds.Height) break;
+            if (row >= bounds.Height)
+            {
+                break;
+            }
 
             var x = col * ItemWidth;
             var pct = Math.Clamp(_cores[i], 0, 100);
@@ -94,7 +103,11 @@ public sealed class CoreMeterNode : LayoutNode, IInvalidatingNode
 
     public override void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
         _invalidated.OnCompleted();
         _invalidated.Dispose();

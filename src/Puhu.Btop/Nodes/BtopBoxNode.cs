@@ -113,13 +113,24 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
 
             if (_hotkey is >= 1 and <= 9)
             {
-                if (_highlightColor.HasValue) ctx.SetForeground(_highlightColor.Value);
+                if (_highlightColor.HasValue)
+                {
+                    ctx.SetForeground(_highlightColor.Value);
+                }
+
                 ctx.WriteAt(x, 0, Superscript[_hotkey]);
                 x++;
             }
 
-            if (_titleColor.HasValue) ctx.SetForeground(_titleColor.Value);
-            else ctx.ResetColors();
+            if (_titleColor.HasValue)
+            {
+                ctx.SetForeground(_titleColor.Value);
+            }
+            else
+            {
+                ctx.ResetColors();
+            }
+
             ctx.WriteAt(x, 0, title);
             x += title.Length;
 
@@ -129,12 +140,18 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
 
             // Remaining dashes from titleEnd to w-2, then corner.
             var remaining = w - 1 - titleEnd;
-            if (remaining > 0) ctx.WriteAt(titleEnd, 0, new string(H, remaining));
+            if (remaining > 0)
+            {
+                ctx.WriteAt(titleEnd, 0, new string(H, remaining));
+            }
         }
         else
         {
             // No title: single dash run from col 1 to col w-2.
-            if (w > 2) ctx.WriteAt(1, 0, new string(H, w - 2));
+            if (w > 2)
+            {
+                ctx.WriteAt(1, 0, new string(H, w - 2));
+            }
         }
 
         ctx.WriteAt(w - 1, 0, TopRight);
@@ -161,7 +178,11 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
 
         // Bottom border.
         ctx.WriteAt(0, h - 1, BottomLeft);
-        if (w > 2) ctx.WriteAt(1, h - 1, new string(H, w - 2));
+        if (w > 2)
+        {
+            ctx.WriteAt(1, h - 1, new string(H, w - 2));
+        }
+
         ctx.WriteAt(w - 1, h - 1, BottomRight);
 
         ctx.ResetColors();
@@ -178,20 +199,34 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
 
         void Border(Color? c)
         {
-            if (c.HasValue) ctx.SetForeground(c.Value);
-            else ctx.ResetColors();
+            if (c.HasValue)
+            {
+                ctx.SetForeground(c.Value);
+            }
+            else
+            {
+                ctx.ResetColors();
+            }
         }
     }
 
     public override void OnActivate()
     {
-        if (_content is IActivatableNode a) a.OnActivate();
+        if (_content is IActivatableNode a)
+        {
+            a.OnActivate();
+        }
+
         base.OnActivate();
     }
 
     public override void OnDeactivate()
     {
-        if (_content is IActivatableNode a) a.OnDeactivate();
+        if (_content is IActivatableNode a)
+        {
+            a.OnDeactivate();
+        }
+
         base.OnDeactivate();
     }
 

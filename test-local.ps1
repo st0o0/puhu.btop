@@ -41,11 +41,3 @@ Copy-Item $builtDll (Join-Path $pluginsDir "Puhu.Btop.dll") -Force
 $builtPdb = [System.IO.Path]::ChangeExtension($builtDll, ".pdb")
 if (Test-Path $builtPdb) { Copy-Item $builtPdb (Join-Path $pluginsDir "Puhu.Btop.pdb") -Force }
 
-# 3. Launch the host
-if ($NoRun) {
-    Write-Host "==> Done. Plugin deployed; host not started (-NoRun)." -ForegroundColor Green
-    return
-}
-
-Write-Host "==> Launching Puhu host (Ctrl+C / quit key to exit)..." -ForegroundColor Cyan
-dotnet run --project $hostProject -c $Configuration

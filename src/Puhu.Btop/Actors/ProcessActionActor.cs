@@ -46,9 +46,14 @@ public sealed class ProcessActionActor : ReceiveActor
             {
                 using var proc = Process.GetProcessById(msg.Pid);
                 if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+                {
                     proc.ProcessorAffinity = msg.AffinityMask;
+                }
                 else
+                {
                     throw new PlatformNotSupportedException("ProcessorAffinity is not supported on this platform.");
+                }
+
                 Sender.Tell(new ActionSuccess($"Affinity set for {msg.Pid}"));
             }
             catch (Exception ex)

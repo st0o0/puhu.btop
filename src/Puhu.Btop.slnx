@@ -3,6 +3,7 @@
   <Folder Name="/Items/">
     <File Path="../.github/workflows/ci.yml" />
     <File Path="../.github/workflows/release.yml" />
+    <File Path="../test-local.ps1" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
     <File Path="global.json" />

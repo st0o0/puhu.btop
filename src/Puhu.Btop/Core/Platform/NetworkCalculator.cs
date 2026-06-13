@@ -10,7 +10,9 @@ public static class NetworkCalculator
         long currRx, long currTx, long? prevRx, long? prevTx)
     {
         if (prevRx is null || prevTx is null)
+        {
             return (0, 0);
+        }
 
         var rx = (ulong)Math.Max(0, currRx - prevRx.Value);
         var tx = (ulong)Math.Max(0, currTx - prevTx.Value);
@@ -32,7 +34,9 @@ public static class NetworkCalculator
         foreach (var ni in interfaces)
         {
             if (!ShouldInclude(ni.IsUp, ni.Speed))
+            {
                 continue;
+            }
 
             var name = TruncateName(ni.Name, 20);
             nextState[name] = (ni.RxBytes, ni.TxBytes);

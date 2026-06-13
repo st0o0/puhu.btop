@@ -19,8 +19,7 @@ public sealed class MonitorDemandService(IRequiredActor<MonitoringSupervisor> su
     }
 
     private void Send(MetricKind kind, int delta) =>
-        _ = supervisor.GetAsync(CancellationToken.None).ContinueWith(
-            (Task<IActorRef> t) => t.Result.Tell(new DemandChanged(kind, delta), ActorRefs.NoSender),
+        _ = supervisor.GetAsync(CancellationToken.None).ContinueWith(t => t.Result.Tell(new DemandChanged(kind, delta), ActorRefs.NoSender),
             TaskContinuationOptions.OnlyOnRanToCompletion);
 
     private sealed class Releaser(Action release) : IDisposable

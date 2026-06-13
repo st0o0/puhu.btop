@@ -24,7 +24,9 @@ public sealed class MacCpuMetrics : ICpuMetrics
             var host = mach_host_self();
             if (host_processor_info(host, PROCESSOR_CPU_LOAD_INFO, out var cpuCount,
                 out var cpuInfo, out var cpuInfoCount) != 0)
+            {
                 return new CpuMeasurement(0, []);
+            }
 
             var coreCount = (int)cpuCount;
             var coreIdle = new long[coreCount];
@@ -52,7 +54,9 @@ public sealed class MacCpuMetrics : ICpuMetrics
             vm_deallocate(mach_task_self(), cpuInfo, (nint)(cpuInfoCount * sizeof(int)));
 
             if (_state.CoreIdle is null)
+            {
                 _state = CpuCalculator.State.Initial(coreCount);
+            }
 
             var result = CpuCalculator.Calculate(totalIdle, totalAll, coreIdle, coreTotal, _state);
             _state = result.NextState;

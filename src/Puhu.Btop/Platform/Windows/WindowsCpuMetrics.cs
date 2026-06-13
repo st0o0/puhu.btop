@@ -26,7 +26,9 @@ public sealed class WindowsCpuMetrics : ICpuMetrics
             var (coreIdle, coreTotal) = ReadPerCoreRaw(coreCount);
 
             if (_state.CoreIdle is null)
+            {
                 _state = CpuCalculator.State.Initial(coreCount);
+            }
 
             var result = CpuCalculator.Calculate(idle, total, coreIdle, coreTotal, _state);
             _state = result.NextState;
@@ -46,7 +48,9 @@ public sealed class WindowsCpuMetrics : ICpuMetrics
         {
             var status = NtQuerySystemInformation(8, buffer, size, out _);
             if (status != 0)
+            {
                 return (new long[coreCount], new long[coreCount]);
+            }
 
             var coreIdle = new long[coreCount];
             var coreTotal = new long[coreCount];
