@@ -10,4 +10,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Puhu.Btop.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Servus.Akka" />
+  </ItemGroup>
 </Project>

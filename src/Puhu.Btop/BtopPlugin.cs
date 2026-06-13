@@ -37,17 +37,7 @@ public sealed class BtopPlugin : IPuhuPlugin
                     /* degraded: usage only, no I/O rates */
                 }
 
-                var supervisor = system.ActorOf(
-                    MonitoringSupervisor.Props(
-                        resolver.GetService<ICpuMetrics>(),
-                        resolver.GetService<IMemoryMetrics>(),
-                        diskMetrics,
-                        resolver.GetService<INetworkMetrics>(),
-                        resolver.GetService<IGpuMetrics>(),
-                        resolver.GetService<IProcessClassifier>(),
-                        resolver.GetService<IProcessTreeProvider>(),
-                        resolver.GetService<IConnectionProvider>(),
-                        resolver.GetService<IMetricSink>()),
+                var supervisor = system.ActorOf(resolver.Props<MonitoringSupervisor>(),
                     "btop-monitoring");
                 registry.Register<MonitoringSupervisor>(supervisor);
 
