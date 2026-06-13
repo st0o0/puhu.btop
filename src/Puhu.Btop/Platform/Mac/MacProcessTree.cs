@@ -19,6 +19,18 @@ public sealed class MacProcessTree : IProcessTreeProvider
         }
     }
 
+    public IReadOnlyDictionary<int, int> ReadParentMap()
+    {
+        try
+        {
+            return ReadProcessMaps().ParentMap;
+        }
+        catch
+        {
+            return new Dictionary<int, int>();
+        }
+    }
+
     private static (Dictionary<int, int> ParentMap, Dictionary<int, string> NameMap) ReadProcessMaps()
     {
         var psi = new ProcessStartInfo("ps", "-eo pid,ppid,comm")

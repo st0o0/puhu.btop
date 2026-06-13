@@ -15,6 +15,8 @@ public sealed class WindowsProcessTree : IProcessTreeProvider
         return ProcessTreeBuilder.Build(rootPid, parentMap, nameMap);
     }
 
+    public IReadOnlyDictionary<int, int> ReadParentMap() => ReadProcessMaps().ParentMap;
+
     private static (Dictionary<int, int> ParentMap, Dictionary<int, string> NameMap) ReadProcessMaps()
     {
         var parentMap = new Dictionary<int, int>();

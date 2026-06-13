@@ -29,7 +29,10 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     }
 
     public string[] GetKeyHints() =>
-        ["1-4:Boxes", "↑↓:Select", "f:Filter", "e:Tree", "←→:Sort", "t:Term", "k:Kill"];
+    [
+        ViewModel.GpuAvailable ? "1-5:Boxes" : "1-4:Boxes",
+        "↑↓:Select", "f:Filter", "e:Tree", "←→:Sort", "t:Term", "k:Kill",
+    ];
 
     public override ILayoutNode BuildLayout()
     {
@@ -78,8 +81,9 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
         return Layouts.Vertical()
             .WithChild(ViewModel.ActivePreset
-                .CombineLatest(ViewModel.ShowCpu, ViewModel.ShowMemory, ViewModel.ShowNetDisk, ViewModel.ShowProcesses,
-                    (preset, _, _, _, _) => BuildGridForPreset(preset))
+                .CombineLatest(ViewModel.ShowCpu, ViewModel.ShowMemory, ViewModel.ShowNetDisk,
+                    ViewModel.ShowProcesses, ViewModel.ShowGpu,
+                    (preset, _, _, _, _, _) => BuildGridForPreset(preset))
                 .AsLayout().Fill())
             .WithChild(ViewModel.StatusHint
                 .Select<string, ILayoutNode>(hint =>
@@ -104,20 +108,32 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
         ViewModel.Store.Cpu.Subscribe(s =>
         {
-            if (s is null) return;
+            if (s is null)
+            {
+                return;
+            }
+
             _cpuGraph?.SetData(ViewModel.Store.CpuHistory.Snapshot());
             _coresNode?.SetCores(s.CorePercents);
         }).DisposeWith(Subscriptions);
 
         ViewModel.Store.Memory.Subscribe(s =>
         {
-            if (s is null) return;
+            if (s is null)
+            {
+                return;
+            }
+
             _ramGraph?.SetData(ViewModel.Store.MemHistory.Snapshot());
         }).DisposeWith(Subscriptions);
 
         ViewModel.Store.Gpu.Subscribe(g =>
         {
-            if (g is null) return;
+            if (g is null)
+            {
+                return;
+            }
+
             _gpuGraph?.SetData(ViewModel.Store.GpuHistory.Snapshot());
         }).DisposeWith(Subscriptions);
 
@@ -154,8 +170,9 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
         var showMem = ViewModel.ShowMemory.Value;
         var showNet = ViewModel.ShowNetDisk.Value;
         var showProc = ViewModel.ShowProcesses.Value;
+        var showGpu = ViewModel.GpuAvailable && ViewModel.ShowGpu.Value;
 
-        if (ViewModel.GpuAvailable)
+        if (showGpu)
         {
             var hasMiddleRow = showMem || showNet;
 
@@ -169,7 +186,11 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         new SizeConstraint.Percent(20),
                         new SizeConstraint.Fill());
 
-                if (showCpu) grid.SetCell(0, 0, BuildCpuPanel());
+                if (showCpu)
+                {
+                    grid.SetCell(0, 0, BuildCpuPanel());
+                }
+
                 grid.SetCell(0, showCpu ? 1 : 0, BuildGpuPanel(), colSpan: showCpu ? 1 : 2);
 
                 switch (showMem)
@@ -192,7 +213,10 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                     }
                 }
 
-                if (showProc) grid.SetCell(2, 0, BuildProcessPanel(), colSpan: 2);
+                if (showProc)
+                {
+                    grid.SetCell(2, 0, BuildProcessPanel(), colSpan: 2);
+                }
             }
             else
             {
@@ -202,10 +226,17 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         new SizeConstraint.Percent(30),
                         new SizeConstraint.Fill());
 
-                if (showCpu) grid.SetCell(0, 0, BuildCpuPanel());
+                if (showCpu)
+                {
+                    grid.SetCell(0, 0, BuildCpuPanel());
+                }
+
                 grid.SetCell(0, showCpu ? 1 : 0, BuildGpuPanel(), colSpan: showCpu ? 1 : 2);
 
-                if (showProc) grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 2);
+                if (showProc)
+                {
+                    grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 2);
+                }
             }
 
             return grid;
@@ -225,7 +256,10 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         new SizeConstraint.Percent(20),
                         new SizeConstraint.Fill());
 
-                if (showCpu) grid.SetCell(0, 0, BuildCpuPanel(), colSpan: 2);
+                if (showCpu)
+                {
+                    grid.SetCell(0, 0, BuildCpuPanel(), colSpan: 2);
+                }
 
                 switch (showMem)
                 {
@@ -247,7 +281,10 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                     }
                 }
 
-                if (showProc) grid.SetCell(2, 0, BuildProcessPanel(), colSpan: 2);
+                if (showProc)
+                {
+                    grid.SetCell(2, 0, BuildProcessPanel(), colSpan: 2);
+                }
             }
             else
             {
@@ -257,9 +294,15 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         new SizeConstraint.Percent(30),
                         new SizeConstraint.Fill());
 
-                if (showCpu) grid.SetCell(0, 0, BuildCpuPanel(), colSpan: 2);
+                if (showCpu)
+                {
+                    grid.SetCell(0, 0, BuildCpuPanel(), colSpan: 2);
+                }
 
-                if (showProc) grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 2);
+                if (showProc)
+                {
+                    grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 2);
+                }
             }
 
             return grid;
@@ -276,8 +319,15 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             .WithColumnWidths(new SizeConstraint.Fill(), new SizeConstraint.Fill())
             .WithRowHeights(new SizeConstraint.Percent(50), new SizeConstraint.Fill());
 
-        if (showCpu) grid.SetCell(0, 0, BuildCpuPanel(), colSpan: 2);
-        if (showProc) grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 2);
+        if (showCpu)
+        {
+            grid.SetCell(0, 0, BuildCpuPanel(), colSpan: 2);
+        }
+
+        if (showProc)
+        {
+            grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 2);
+        }
 
         return grid;
     }
@@ -289,8 +339,9 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
         var showMem = ViewModel.ShowMemory.Value;
         var showNet = ViewModel.ShowNetDisk.Value;
         var showProc = ViewModel.ShowProcesses.Value;
+        var showGpu = ViewModel.GpuAvailable && ViewModel.ShowGpu.Value;
 
-        if (ViewModel.GpuAvailable)
+        if (showGpu)
         {
             var grid = new GridNode(2, 3)
                 .WithColumnWidths(new SizeConstraint.Fill(), new SizeConstraint.Fill(), new SizeConstraint.Fill())
@@ -298,8 +349,16 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
             // Row 0: CPU | Memory | GPU — place only visible panels, pack left
             var row0Col = 0;
-            if (showCpu) grid.SetCell(0, row0Col++, BuildCpuPanel());
-            if (showMem) grid.SetCell(0, row0Col++, BuildMemoryPanel());
+            if (showCpu)
+            {
+                grid.SetCell(0, row0Col++, BuildCpuPanel());
+            }
+
+            if (showMem)
+            {
+                grid.SetCell(0, row0Col++, BuildMemoryPanel());
+            }
+
             grid.SetCell(0, row0Col, BuildGpuPanel(), colSpan: 3 - row0Col);
 
             switch (showNet)
@@ -333,11 +392,25 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
             // Row 0: CPU | Memory | Net/Disk — place only visible panels, pack left
             var row0Col = 0;
-            if (showCpu) grid.SetCell(0, row0Col++, BuildCpuPanel());
-            if (showMem) grid.SetCell(0, row0Col++, BuildMemoryPanel());
-            if (showNet) grid.SetCell(0, row0Col, BuildNetDiskPanel());
+            if (showCpu)
+            {
+                grid.SetCell(0, row0Col++, BuildCpuPanel());
+            }
 
-            if (showProc) grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 3);
+            if (showMem)
+            {
+                grid.SetCell(0, row0Col++, BuildMemoryPanel());
+            }
+
+            if (showNet)
+            {
+                grid.SetCell(0, row0Col, BuildNetDiskPanel());
+            }
+
+            if (showProc)
+            {
+                grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 3);
+            }
 
             return grid;
         }
@@ -353,8 +426,15 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             .WithColumnWidths(new SizeConstraint.Fill())
             .WithRowHeights(new SizeConstraint.Percent(15), new SizeConstraint.Fill());
 
-        if (showCpu) grid.SetCell(0, 0, BuildCpuStripPanel());
-        if (showProc) grid.SetCell(1, 0, BuildProcessPanel());
+        if (showCpu)
+        {
+            grid.SetCell(0, 0, BuildCpuStripPanel());
+        }
+
+        if (showProc)
+        {
+            grid.SetCell(1, 0, BuildProcessPanel());
+        }
 
         return grid;
     }
@@ -545,9 +625,36 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildProcessPanel()
     {
         var theme = _theme.Current;
-        var header = new TextNode($" {"PID",6}  {"Name",-22} {"CPU%",6}  {"RAM",7}")
-            .WithForeground(theme.Header)
-            .Height(1);
+
+        // Header re-renders whenever the sort column or direction changes so the
+        // active column's ▲/▼ marker stays in sync.
+        var header = ViewModel.SortField
+            .CombineLatest(ViewModel.SortDescending, (_, _) => ViewModel.BuildProcessHeader())
+            .Select<string, ILayoutNode>(text => new TextNode(text).WithForeground(theme.Header))
+            .AsLayout().Height(1);
+
+        // btop-style inline filter line: shown at the top of the proc box while
+        // editing (with a block cursor) or when a filter is applied, so the typed
+        // query is visible in context — not just buried in the bottom status line.
+        var filterLine = ViewModel.IsFilterMode
+            .CombineLatest(ViewModel.ProcessFilter, (editing, text) => (editing, text))
+            .Select<(bool editing, string text), ILayoutNode>(s =>
+            {
+                if (s.editing)
+                {
+                    return new TextNode($" Filter: {s.text}█  [Enter] Apply  [Esc] Clear")
+                        .WithForeground(theme.Accent).Height(1);
+                }
+
+                if (!string.IsNullOrEmpty(s.text))
+                {
+                    return new TextNode($" Filter: {s.text}  [f] Edit")
+                        .WithForeground(theme.Accent).Height(1);
+                }
+
+                return new TextNode("").Height(0);
+            })
+            .AsLayout();
 
         return new BtopBoxNode()
             .WithTitle("proc")
@@ -557,6 +664,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             .WithHighlightColor(theme.Accent)
             .WithContent(
                 Layouts.Vertical()
+                    .WithChild(filterLine)
                     .WithChild(header)
                     .WithChild(_processList!.Fill()))
             .Fill();

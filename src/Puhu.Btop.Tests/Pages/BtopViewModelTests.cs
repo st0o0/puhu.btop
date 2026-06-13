@@ -10,6 +10,7 @@ using Puhu.Btop.Services;
 using Puhu.Plugin;
 using R3;
 using Termina.Input;
+using Termina.Notifications;
 using Termina.Reactive;
 
 namespace Puhu.Btop.Tests.Pages;
@@ -17,6 +18,7 @@ namespace Puhu.Btop.Tests.Pages;
 public class BtopViewModelTests : IDisposable
 {
     private readonly ActorSystem _system = ActorSystem.Create("btop-vm-tests");
+    private RecordingToastService _toasts = new();
 
     public void Dispose() => _system.Dispose();
 
@@ -68,6 +70,20 @@ public class BtopViewModelTests : IDisposable
         public IDisposable Subscribe(Action onTick) => Disposable.Empty;
     }
 
+    /// <summary>Records every toast so tests can assert user feedback was shown.</summary>
+    private sealed class RecordingToastService : IToastService
+    {
+        public readonly List<string> Messages = new();
+        public Observable<ToastMessage?> CurrentToast => Observable.Empty<ToastMessage?>();
+        public void Show(string message, ToastOptions? options = null) => Messages.Add(message);
+    }
+
+    private sealed class FakeGpuMetrics : IGpuMetrics
+    {
+        public bool IsAvailable => true;
+        public GpuSnapshot GetSnapshot() => new("Fake GPU", 0, 0, 0, 0);
+    }
+
     /// <summary>
     /// IRequiredActor whose ref is an <see cref="Inbox"/> receiver, so messages the
     /// VM tells the supervisor land in a queue the test can assert on — a real
@@ -97,13 +113,15 @@ public class BtopViewModelTests : IDisposable
         demand = new CountingDemand();
         input = new Subject<IInputEvent>();
         supervisorInbox = Inbox.Create(_system);
+        _toasts = new RecordingToastService();
         var vm = new BtopViewModel(
             store ?? new MetricStore(),
             demand,
             gpu ?? NoGpuMetrics.Instance,
             settings,
             new FakeTickSource(),
-            new ProbeRequiredActor(supervisorInbox.Receiver));
+            new ProbeRequiredActor(supervisorInbox.Receiver),
+            _toasts);
 
         // The framework wires Input via an internal WireUp call when binding to a
         // page. Tests don't go through a page, so wire an empty input stream by
@@ -311,6 +329,117 @@ public class BtopViewModelTests : IDisposable
         var kill = Assert.IsType<KillProcess>(msg);
         Assert.Equal(4321, kill.Pid);
         Assert.Throws<TimeoutException>(() => supervisor.Receive(TimeSpan.FromMilliseconds(200)));
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void Enter_AppliesFilterAndLeavesEditMode()
+    {
+        var vm = CreateVm(out _, out _, out var input, out _);
+        vm.OnActivated();
+
+        // 'f' enters filter edit mode.
+        input.OnNext(Key(ConsoleKey.F));
+        Assert.True(vm.IsFilterMode.Value);
+
+        // Type "ch".
+        input.OnNext(Key(ConsoleKey.C, 'c'));
+        input.OnNext(Key(ConsoleKey.H, 'h'));
+        Assert.Equal("ch", vm.ProcessFilter.Value);
+
+        // Enter applies: edit mode ends but the filter text is KEPT (the old code had
+        // no Enter handler, so the only exit was Esc — which cleared the filter).
+        input.OnNext(Key(ConsoleKey.Enter));
+        Assert.False(vm.IsFilterMode.Value);
+        Assert.Equal("ch", vm.ProcessFilter.Value);
+
+        // And keys now act on the list again instead of being eaten as filter text.
+        input.OnNext(Key(ConsoleKey.E));
+        Assert.True(vm.TreeMode.Value);
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void Pressing5_TogglesGpuBox_WhenGpuAvailable()
+    {
+        var vm = CreateVm(out var settings, out _, out var input, out _, gpu: new FakeGpuMetrics());
+        vm.OnActivated();
+
+        Assert.True(vm.ShowGpu.Value);
+
+        // '5' hides the GPU box…
+        input.OnNext(Key(ConsoleKey.D5));
+        Assert.False(vm.ShowGpu.Value);
+        Assert.False((bool)settings.Values["show-gpu"]!);
+
+        // …and shows it again.
+        input.OnNext(Key(ConsoleKey.D5));
+        Assert.True(vm.ShowGpu.Value);
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void Pressing5_DoesNothing_WhenNoGpu()
+    {
+        // NoGpuMetrics (default) → the GPU box doesn't exist, so '5' is inert.
+        var vm = CreateVm(out _, out _, out var input, out _);
+        vm.OnActivated();
+
+        input.OnNext(Key(ConsoleKey.D5));
+        Assert.True(vm.ShowGpu.Value); // unchanged default
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void ProcessHeader_MarksActiveSortColumnWithDirectionArrow()
+    {
+        var vm = CreateVm(out _, out _);
+
+        // Default: CPU%, descending.
+        var header = vm.BuildProcessHeader();
+        Assert.Contains("CPU%▼", header);
+        Assert.DoesNotContain("PID▼", header);
+
+        // Switch to RAM, ascending.
+        vm.ShiftSortField(+1); // CpuPercent → RamPercent
+        vm.SortDescending.Value = false;
+        var header2 = vm.BuildProcessHeader();
+        Assert.Contains("RAM▲", header2);
+        Assert.DoesNotContain("CPU%▼", header2);
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void KillWithNoSelection_ShowsToastInsteadOfSilentlyDoingNothing()
+    {
+        var vm = CreateVm(out _, out _, out var input, out _);
+        vm.GetSelectedProcess = () => null;
+        vm.OnActivated();
+
+        input.OnNext(Key(ConsoleKey.K));
+
+        Assert.Null(vm.PendingAction.Value);
+        Assert.Contains(_toasts.Messages, m => m.Contains("No process"));
+
+        vm.Dispose();
+    }
+
+    [Fact]
+    public void ConfirmingKill_ShowsImmediateFeedbackToast()
+    {
+        var vm = CreateVm(out _, out _, out var input, out _);
+        vm.GetSelectedProcess = () => Proc(4321, "victim");
+        vm.OnActivated();
+
+        input.OnNext(Key(ConsoleKey.K));
+        input.OnNext(Key(ConsoleKey.Y));
+
+        Assert.Contains(_toasts.Messages, m => m.Contains("4321") && m.Contains("victim"));
 
         vm.Dispose();
     }

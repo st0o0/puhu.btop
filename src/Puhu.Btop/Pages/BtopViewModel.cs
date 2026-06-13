@@ -10,11 +10,19 @@ using Puhu.Plugin;
 using R3;
 using Termina.Input;
 using Termina.Layout;
+using Termina.Notifications;
 using Termina.Reactive;
+using Termina.Terminal;
 
 namespace Puhu.Btop.Pages;
 
-public enum BtopSortField { CpuPercent, RamPercent, Name, Pid }
+public enum BtopSortField
+{
+    CpuPercent,
+    RamPercent,
+    Name,
+    Pid
+}
 
 /// <summary>A process action awaiting y/n confirmation (terminate or kill).</summary>
 public sealed record PendingProcessAction(int Pid, string ProcessName, string Verb);
@@ -27,8 +35,10 @@ public class BtopViewModel : ReactiveViewModel
     private readonly ISettingsStore _settings;
     private readonly ITickSource _tickSource;
     private readonly IRequiredActor<MonitoringSupervisor> _supervisor;
+    private readonly IToastService _toasts;
     private readonly List<IDisposable> _demandHandles = [];
     private IActorRef? _supervisorActor;
+    private bool _disposed;
 
     // ── Metrics ─────────────────────────────────────────────────────────────
     public ReactiveProperty<double> CpuTotal { get; } = new(0);
@@ -59,11 +69,12 @@ public class BtopViewModel : ReactiveViewModel
     // Pending terminate/kill action awaiting y/n confirmation. Null when none.
     public ReactiveProperty<PendingProcessAction?> PendingAction { get; } = new(null);
 
-    // Panel visibility toggles (1–4 keys)
+    // Panel visibility toggles (1–5 keys)
     public ReactiveProperty<bool> ShowCpu { get; }
     public ReactiveProperty<bool> ShowMemory { get; }
     public ReactiveProperty<bool> ShowNetDisk { get; }
     public ReactiveProperty<bool> ShowProcesses { get; }
+    public ReactiveProperty<bool> ShowGpu { get; }
 
     public GraphStyle GraphStyleSetting { get; }
 
@@ -83,7 +94,8 @@ public class BtopViewModel : ReactiveViewModel
         IGpuMetrics gpuMetrics,
         ISettingsStore settings,
         ITickSource tickSource,
-        IRequiredActor<MonitoringSupervisor> supervisor)
+        IRequiredActor<MonitoringSupervisor> supervisor,
+        IToastService toasts)
     {
         _store = store;
         _demand = demand;
@@ -91,6 +103,7 @@ public class BtopViewModel : ReactiveViewModel
         _settings = settings;
         _tickSource = tickSource;
         _supervisor = supervisor;
+        _toasts = toasts;
 
         TreeMode = new ReactiveProperty<bool>(settings.Get<bool?>("tree-mode") ?? false);
 
@@ -101,6 +114,7 @@ public class BtopViewModel : ReactiveViewModel
         ShowMemory = new ReactiveProperty<bool>(settings.Get<bool?>("show-memory") ?? true);
         ShowNetDisk = new ReactiveProperty<bool>(settings.Get<bool?>("show-netdisk") ?? true);
         ShowProcesses = new ReactiveProperty<bool>(settings.Get<bool?>("show-processes") ?? true);
+        ShowGpu = new ReactiveProperty<bool>(settings.Get<bool?>("show-gpu") ?? true);
 
         SortField = new ReactiveProperty<BtopSortField>(
             settings.Get<int?>("sort-field") is { } sf && Enum.IsDefined((BtopSortField)sf)
@@ -121,7 +135,9 @@ public class BtopViewModel : ReactiveViewModel
         AcquireForVisibility(MetricKind.Network, ShowNetDisk.Value);
         AcquireForVisibility(MetricKind.Process, ShowProcesses.Value);
         if (_gpuMetrics.IsAvailable)
-            AcquireForVisibility(MetricKind.Gpu, ShowCpu.Value);
+        {
+            AcquireForVisibility(MetricKind.Gpu, ShowGpu.Value);
+        }
 
         // Demand follows box visibility: release the underlying monitors when the
         // owning box is hidden, re-acquire when shown again.
@@ -140,9 +156,10 @@ public class BtopViewModel : ReactiveViewModel
 
         if (_gpuMetrics.IsAvailable)
         {
-            ShowCpu.Subscribe(visible =>
+            ShowGpu.Subscribe(visible =>
             {
                 AcquireForVisibility(MetricKind.Gpu, visible);
+                PersistShow("show-gpu", visible);
             }).DisposeWith(Subscriptions);
         }
 
@@ -151,39 +168,48 @@ public class BtopViewModel : ReactiveViewModel
 
         _store.Cpu.Subscribe(s =>
         {
-            if (s is null) return;
+            if (s is null)
+            {
+                return;
+            }
+
             CpuName.Value = s.Name;
             CpuTotal.Value = s.TotalPercent;
             CpuCores.Value = s.CorePercents;
-            if (!IsFilterMode.Value) UpdateStatusHint();
+            if (!IsFilterMode.Value)
+            {
+                UpdateStatusHint();
+            }
         }).DisposeWith(Subscriptions);
 
         _store.Memory.Subscribe(s =>
         {
-            if (s is null) return;
+            if (s is null)
+            {
+                return;
+            }
+
             RamTotal.Value = s.TotalBytes;
             RamUsed.Value = s.UsedBytes;
-            if (!IsFilterMode.Value) UpdateStatusHint();
+            if (!IsFilterMode.Value)
+            {
+                UpdateStatusHint();
+            }
         }).DisposeWith(Subscriptions);
 
-        _store.Disks.Subscribe(d =>
-        {
-            Disks.Value = d;
-        }).DisposeWith(Subscriptions);
+        _store.Disks.Subscribe(d => { Disks.Value = d; }).DisposeWith(Subscriptions);
 
-        _store.Networks.Subscribe(n =>
-        {
-            Networks.Value = n;
-        }).DisposeWith(Subscriptions);
+        _store.Networks.Subscribe(n => { Networks.Value = n; }).DisposeWith(Subscriptions);
 
-        _store.Processes.Subscribe(p =>
-        {
-            AllProcesses.Value = p;
-        }).DisposeWith(Subscriptions);
+        _store.Processes.Subscribe(p => { AllProcesses.Value = p; }).DisposeWith(Subscriptions);
 
         _store.Gpu.Subscribe(g =>
         {
-            if (g is null) return;
+            if (g is null)
+            {
+                return;
+            }
+
             Gpu.Value = g;
         }).DisposeWith(Subscriptions);
 
@@ -191,9 +217,13 @@ public class BtopViewModel : ReactiveViewModel
 
         var resolve = _supervisor.GetAsync(CancellationToken.None);
         if (resolve.IsCompletedSuccessfully)
+        {
             _supervisorActor = resolve.Result;
+        }
         else
+        {
             _ = ResolveSupervisorAsync(resolve);
+        }
 
         Input.OfType<IInputEvent, KeyPressed>()
             .Subscribe(HandleKey)
@@ -226,8 +256,8 @@ public class BtopViewModel : ReactiveViewModel
         if (IsFilterMode.Value)
         {
             StatusHint.Value = ProcessFilter.Value.Length > 0
-                ? $" Filter: \"{ProcessFilter.Value}\"  [Esc] Clear"
-                : " Filter: █   (type to filter processes, Esc to cancel)";
+                ? $" Filter: \"{ProcessFilter.Value}█\"  [Enter] Apply  [Esc] Clear"
+                : " Filter: █   (type to filter, [Enter] apply, [Esc] cancel)";
             return;
         }
 
@@ -242,6 +272,22 @@ public class BtopViewModel : ReactiveViewModel
         var rate = $"{_tickSource.CurrentInterval.TotalMilliseconds:F0}ms";
         StatusHint.Value =
             $" {cpu}  {ram}  |  {layout}  |  [F] Filter  [P] Preset  {sort}  [R] {dir}  {tree}  |  {rate}";
+    }
+
+    /// <summary>
+    /// Column header for the process table. The active sort column is marked with a
+    /// ▼ (descending) or ▲ (ascending) arrow so it's visible in the table itself.
+    /// Field widths are kept in lock-step with the data-row format in <c>BtopPage</c>.
+    /// </summary>
+    public string BuildProcessHeader()
+    {
+        var arrow = SortDescending.Value ? '▼' : '▲';
+
+        string Col(BtopSortField field, string label) =>
+            SortField.Value == field ? $"{label}{arrow}" : label;
+
+        return $" {Col(BtopSortField.Pid, "PID"),6}  {Col(BtopSortField.Name, "Name"),-22} " +
+               $"{Col(BtopSortField.CpuPercent, "CPU%"),6}  {Col(BtopSortField.RamPercent, "RAM"),7}";
     }
 
     public IReadOnlyList<ProcessSnapshot> GetFilteredProcesses()
@@ -303,12 +349,19 @@ public class BtopViewModel : ReactiveViewModel
 
         void Emit(ProcessSnapshot proc, int depth)
         {
-            if (!visited.Add(proc.Pid)) return; // guard against cycles
+            if (!visited.Add(proc.Pid))
+            {
+                return; // guard against cycles
+            }
+
             _treeDepth[proc.Pid] = depth;
             ordered.Add(proc);
             if (childrenByParent.TryGetValue(proc.Pid, out var kids))
             {
-                foreach (var kid in kids) Emit(kid, depth + 1);
+                foreach (var kid in kids)
+                {
+                    Emit(kid, depth + 1);
+                }
             }
         }
 
@@ -378,16 +431,40 @@ public class BtopViewModel : ReactiveViewModel
             // (see RegisterGlobalKeys), so the digit keys are free for box toggles.
             // NumPad variants are kept for parity with btop.
             case ConsoleKey.D1 or ConsoleKey.NumPad1:
-                if (CountVisible() > 1 || !ShowCpu.Value) ShowCpu.Value = !ShowCpu.Value;
+                if (CountVisible() > 1 || !ShowCpu.Value)
+                {
+                    ShowCpu.Value = !ShowCpu.Value;
+                }
+
                 break;
             case ConsoleKey.D2 or ConsoleKey.NumPad2:
-                if (CountVisible() > 1 || !ShowMemory.Value) ShowMemory.Value = !ShowMemory.Value;
+                if (CountVisible() > 1 || !ShowMemory.Value)
+                {
+                    ShowMemory.Value = !ShowMemory.Value;
+                }
+
                 break;
             case ConsoleKey.D3 or ConsoleKey.NumPad3:
-                if (CountVisible() > 1 || !ShowNetDisk.Value) ShowNetDisk.Value = !ShowNetDisk.Value;
+                if (CountVisible() > 1 || !ShowNetDisk.Value)
+                {
+                    ShowNetDisk.Value = !ShowNetDisk.Value;
+                }
+
                 break;
             case ConsoleKey.D4 or ConsoleKey.NumPad4:
-                if (CountVisible() > 1 || !ShowProcesses.Value) ShowProcesses.Value = !ShowProcesses.Value;
+                if (CountVisible() > 1 || !ShowProcesses.Value)
+                {
+                    ShowProcesses.Value = !ShowProcesses.Value;
+                }
+
+                break;
+            case ConsoleKey.D5 or ConsoleKey.NumPad5:
+                // GPU box only exists when a GPU was detected.
+                if (_gpuMetrics.IsAvailable && (CountVisible() > 1 || !ShowGpu.Value))
+                {
+                    ShowGpu.Value = !ShowGpu.Value;
+                }
+
                 break;
 
             case ConsoleKey.UpArrow: ProcessListNode?.MoveUp(); break;
@@ -443,7 +520,14 @@ public class BtopViewModel : ReactiveViewModel
     /// </summary>
     public void RequestProcessAction(string verb)
     {
-        if (GetSelectedProcess?.Invoke() is not { } proc) return;
+        if (GetSelectedProcess?.Invoke() is not { } proc)
+        {
+            // Without a toast this was completely silent — the user couldn't tell
+            // whether the keypress did anything.
+            _toasts.Show("No process selected", new ToastOptions(Color: Color.Yellow));
+            return;
+        }
+
         PendingAction.Value = new PendingProcessAction(proc.Pid, proc.Name, verb);
         UpdateStatusHint();
     }
@@ -453,7 +537,7 @@ public class BtopViewModel : ReactiveViewModel
         switch (key.KeyInfo.Key)
         {
             case ConsoleKey.Y:
-                _supervisorActor?.Tell(new KillProcess(pending.Pid), ActorRefs.NoSender);
+                DispatchProcessAction(pending);
                 PendingAction.Value = null;
                 UpdateStatusHint();
                 break;
@@ -465,10 +549,58 @@ public class BtopViewModel : ReactiveViewModel
         }
     }
 
+    /// <summary>
+    /// Dispatches the confirmed terminate/kill and surfaces the outcome as a toast.
+    /// Uses <c>Ask</c> (not the old fire-and-forget <c>Tell(NoSender)</c>) so the
+    /// real result — success, access-denied, already-exited — is reported instead of
+    /// silently dropped.
+    /// </summary>
+    private void DispatchProcessAction(PendingProcessAction pending)
+    {
+        // Immediate acknowledgement that the confirm registered.
+        _toasts.Show($"{pending.Verb}: PID {pending.Pid} ({pending.ProcessName}) …");
+
+        if (_supervisorActor is not { } supervisor)
+        {
+            return;
+        }
+
+        Observable
+            .FromAsync(ct => new ValueTask<object>(
+                supervisor.Ask<object>(new KillProcess(pending.Pid), TimeSpan.FromSeconds(3), ct)))
+            .Subscribe(
+                result =>
+                {
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
+                    switch (result)
+                    {
+                        case ActionSuccess s:
+                            _toasts.Show(s.Message, new ToastOptions(Color: Color.Green));
+                            break;
+                        case ActionFailure f:
+                            _toasts.Show($"Failed: {f.Error}", new ToastOptions(Color: Color.Red));
+                            break;
+                    }
+                },
+                static _ => { }, // onErrorResume: ignore Ask timeout/cancellation
+                static _ => { }) // onCompleted
+            .DisposeWith(Subscriptions);
+    }
+
     private void HandleFilterKey(KeyPressed key)
     {
         switch (key.KeyInfo.Key)
         {
+            case ConsoleKey.Enter:
+                // Apply the filter and leave edit mode. The filter stays active, so
+                // the list can now be scrolled, sorted, and acted on (kill/term).
+                IsFilterMode.Value = false;
+                UpdateStatusHint();
+                break;
             case ConsoleKey.Escape:
                 IsFilterMode.Value = false;
                 ProcessFilter.Value = "";
@@ -480,6 +612,7 @@ public class BtopViewModel : ReactiveViewModel
                     ProcessFilter.Value = ProcessFilter.Value[..^1];
                     UpdateStatusHint();
                 }
+
                 break;
             default:
                 if (key.KeyInfo.KeyChar is >= ' ' and <= '~')
@@ -487,13 +620,15 @@ public class BtopViewModel : ReactiveViewModel
                     ProcessFilter.Value += key.KeyInfo.KeyChar;
                     UpdateStatusHint();
                 }
+
                 break;
         }
     }
 
     private int CountVisible() =>
         (ShowCpu.Value ? 1 : 0) + (ShowMemory.Value ? 1 : 0) +
-        (ShowNetDisk.Value ? 1 : 0) + (ShowProcesses.Value ? 1 : 0);
+        (ShowNetDisk.Value ? 1 : 0) + (ShowProcesses.Value ? 1 : 0) +
+        (_gpuMetrics.IsAvailable && ShowGpu.Value ? 1 : 0);
 
     private void AcquireForVisibility(MetricKind kind, bool visible)
     {
@@ -501,12 +636,20 @@ public class BtopViewModel : ReactiveViewModel
         var existing = _demandHandles.OfType<KindHandle>().FirstOrDefault(h => h.Kind == kind);
         if (visible)
         {
-            if (existing is not null) return;
+            if (existing is not null)
+            {
+                return;
+            }
+
             _demandHandles.Add(new KindHandle(kind, _demand.Acquire(kind)));
         }
         else
         {
-            if (existing is null) return;
+            if (existing is null)
+            {
+                return;
+            }
+
             existing.Dispose();
             _demandHandles.Remove(existing);
         }
@@ -520,13 +663,18 @@ public class BtopViewModel : ReactiveViewModel
 
     public override void OnDeactivating()
     {
-        foreach (var d in _demandHandles) d.Dispose();
+        foreach (var d in _demandHandles)
+        {
+            d.Dispose();
+        }
+
         _demandHandles.Clear();
         base.OnDeactivating();
     }
 
     public override void Dispose()
     {
+        _disposed = true;
         CpuTotal.Dispose();
         CpuCores.Dispose();
         CpuName.Dispose();
@@ -546,6 +694,7 @@ public class BtopViewModel : ReactiveViewModel
         ShowMemory.Dispose();
         ShowNetDisk.Dispose();
         ShowProcesses.Dispose();
+        ShowGpu.Dispose();
         TreeMode.Dispose();
         PendingAction.Dispose();
         base.Dispose();

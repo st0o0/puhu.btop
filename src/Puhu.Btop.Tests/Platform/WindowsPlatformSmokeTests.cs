@@ -26,4 +26,17 @@ public class WindowsPlatformSmokeTests
         var tree = new WindowsProcessTree().BuildTree(Environment.ProcessId);
         Assert.NotNull(tree);
     }
+
+    [Fact]
+    public void ReadParentMap_includes_this_process_with_a_real_parent()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
+
+        var map = new WindowsProcessTree().ReadParentMap();
+
+        // The running test process must be present with a non-self parent — this is
+        // the data ProcessMonitorActor needs to populate ParentPid for tree mode.
+        Assert.True(map.TryGetValue(Environment.ProcessId, out var parent));
+        Assert.NotEqual(Environment.ProcessId, parent);
+    }
 }

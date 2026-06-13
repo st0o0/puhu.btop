@@ -10,6 +10,7 @@ namespace Puhu.Btop.Actors;
 public sealed class ProcessMonitorActor : ReceiveActor
 {
     private readonly IProcessClassifier _classifier;
+    private readonly IProcessTreeProvider _treeProvider;
     private readonly IMetricSink _sink;
     private Dictionary<int, (TimeSpan CpuTime, DateTime Timestamp)> _previousCpu = new();
 
@@ -19,6 +20,7 @@ public sealed class ProcessMonitorActor : ReceiveActor
     public ProcessMonitorActor(IProcessClassifier classifier, IProcessTreeProvider treeProvider, IMetricSink sink)
     {
         _classifier = classifier;
+        _treeProvider = treeProvider;
         _sink = sink;
 
         Receive<Tick>(_ =>
@@ -26,6 +28,10 @@ public sealed class ProcessMonitorActor : ReceiveActor
             var now = DateTime.UtcNow;
             var coreCount = Environment.ProcessorCount;
             var currentCpu = new Dictionary<int, (TimeSpan CpuTime, DateTime Timestamp)>();
+
+            // pid → parent-pid for the whole system, so each snapshot carries its
+            // ParentPid and the UI can render the process list as a tree ('e' key).
+            var parentMap = ReadParentMap();
 
             var processes = Process.GetProcesses();
             try
@@ -57,7 +63,7 @@ public sealed class ProcessMonitorActor : ReceiveActor
                                 WorkingSetBytes: p.WorkingSet64,
                                 DiskBytesPerSec: 0, NetworkBytesPerSec: 0,
                                 ThreadCount: p.Threads.Count, HandleCount: p.HandleCount,
-                                UserName: "", ParentPid: 0);
+                                UserName: "", ParentPid: parentMap.GetValueOrDefault(pid, 0));
                         }
                         catch
                         {
@@ -79,5 +85,18 @@ public sealed class ProcessMonitorActor : ReceiveActor
                 }
             }
         });
+    }
+
+    private IReadOnlyDictionary<int, int> ReadParentMap()
+    {
+        try
+        {
+            return _treeProvider.ReadParentMap();
+        }
+        catch
+        {
+            // Parent lookup is best-effort; without it the list just renders flat.
+            return new Dictionary<int, int>();
+        }
     }
 }
