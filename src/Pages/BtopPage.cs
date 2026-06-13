@@ -398,13 +398,14 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         .Select<double, ILayoutNode>(pct =>
                             new TextNode($" Total {pct:F1}%  {ViewModel.CpuName.Value}")
                                 .WithForeground(theme.Accent)).AsLayout().Height(1))
-                    .WithChild(new ProgressBarNode()
-                        .WithRange(0, 100)
-                        .WithValue(ViewModel.CpuTotal.Value)
-                        .WithGradient(BtopGradients.Resource(theme))
-                        .WithFillChar(BtopGradients.MeterFill)
-                        .WithEmptyChar(BtopGradients.MeterEmpty)
-                        .Height(1)))
+                    .WithChild(ViewModel.CpuTotal
+                        .Select<double, ILayoutNode>(pct => new ProgressBarNode()
+                            .WithRange(0, 100)
+                            .WithValue(pct)
+                            .WithGradient(BtopGradients.Resource(theme))
+                            .WithFillChar(BtopGradients.MeterFill)
+                            .WithEmptyChar(BtopGradients.MeterEmpty))
+                        .AsLayout().Height(1)))
             .Fill();
     }
 
