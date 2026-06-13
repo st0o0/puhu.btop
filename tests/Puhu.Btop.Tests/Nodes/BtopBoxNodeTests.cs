@@ -60,4 +60,14 @@ public class BtopBoxNodeTests
         var box = new BtopBoxNode().WithTitle("cpu");
         box.Render(new TestRenderContext(0, 0), new Rect(0, 0, 0, 0));
     }
+
+    [Fact]
+    public void Content_renders_inside_the_border()
+    {
+        var box = new BtopBoxNode().WithContent(new TextNode("X"));
+        var (ctx, _) = Render(box, 10, 3);
+
+        // Inner content origin (0,0) maps to outer (1,1), just inside the top-left border.
+        Assert.Equal("X", ctx.Row(1).Substring(1, 1));
+    }
 }

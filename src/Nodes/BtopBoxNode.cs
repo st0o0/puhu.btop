@@ -11,6 +11,19 @@ namespace Puhu.Btop.Nodes;
 /// highlight color, plus an optional centered title segment (e.g. a clock) and content.
 /// Replaces <see cref="Termina.Layout.PanelNode"/>, which is sealed and cannot express this.
 /// </summary>
+/// <remarks>
+/// Known limitation (accepted for the visual sub-project): because Terminas
+/// <c>GetChildNodes()</c> and <c>DisconnectChildInvalidationSubscriptions()</c> are
+/// <c>internal virtual</c> and not overridable from this assembly, the framework's tree
+/// walker does not see this box's content. Rendering and reactive re-rendering work
+/// (content is rendered directly and its <see cref="IInvalidatingNode.Invalidated"/> is
+/// forwarded), but two framework features are blind to content nested in this box:
+/// focus traversal (no focusable content is used yet) and abandoned-subtree subscription
+/// cleanup on layout rebuilds (a low-frequency, per-interaction subscription leak).
+/// Proper fix when we next touch the Termina submodule / add focusable box content:
+/// add <c>[assembly: InternalsVisibleTo("Puhu.Btop")]</c> to Termina and override both
+/// methods like <c>PanelNode</c> does.
+/// </remarks>
 public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
 {
     private const char TopLeft = '╭', TopRight = '╮', BottomLeft = '╰', BottomRight = '╯';
