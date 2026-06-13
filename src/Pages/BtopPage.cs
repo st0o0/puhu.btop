@@ -430,6 +430,17 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                                 return new TextNode($" {usedGb:F1} / {totalGb:F1} GiB  {pct:F1}%")
                                     .WithForeground(theme.Foreground);
                             }).AsLayout().Height(1))
+                    .WithChild(
+                        ViewModel.RamUsed.CombineLatest<ulong, ulong, ILayoutNode>(ViewModel.RamTotal,
+                            (used, total) =>
+                            {
+                                var pct = total > 0 ? (double)used / total * 100 : 0;
+                                return new ProgressBarNode()
+                                    .WithRange(0, 100).WithValue(pct)
+                                    .WithGradient(BtopGradients.Resource(theme))
+                                    .WithFillChar(BtopGradients.MeterFill)
+                                    .WithEmptyChar(BtopGradients.MeterEmpty);
+                            }).AsLayout().Height(1))
                     .WithChild(_ramGraph!.Fill())
                     .Fill())
             .Fill();

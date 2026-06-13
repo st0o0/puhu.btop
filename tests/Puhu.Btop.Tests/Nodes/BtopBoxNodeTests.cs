@@ -89,4 +89,17 @@ public class BtopBoxNodeTests
 
         Assert.DoesNotContain("14:32:07", ctx.Row(0));
     }
+
+    [Fact]
+    public void Title_without_hotkey_is_not_over_truncated()
+    {
+        // Width 9: ╭─┤proc├╮ — "proc" (4 chars) must appear untruncated.
+        // Without hotkey the bracket overhead is only ┤├ (2 chars), so the max title
+        // length is w-5 = 4, which fits "proc" exactly.  The old w-6 = 3 would have
+        // clipped it to "pro".
+        // Layout: col 0=╭ col 1=─ col 2=┤ col 3..6=proc col 7=├ col 8=╮
+        var box = new BtopBoxNode().WithTitle("proc");
+        var (ctx, _) = Render(box, 9, 3);
+        Assert.Equal("┤proc├", ctx.Row(0).Substring(2, 6));
+    }
 }

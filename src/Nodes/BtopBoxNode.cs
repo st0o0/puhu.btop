@@ -107,7 +107,7 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
         var titleEnd = 2;
         if (!string.IsNullOrEmpty(_title) && w > 6)
         {
-            var maxTitle = w - 6;
+            var maxTitle = _hotkey is >= 1 and <= 9 ? w - 6 : w - 5;
             var title = _title!.Length > maxTitle ? _title[..maxTitle] : _title!;
 
             // Segment 1: single dash between corner and left bracket.
