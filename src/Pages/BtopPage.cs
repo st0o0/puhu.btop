@@ -18,7 +18,8 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private GraphNode? _cpuGraph;
     private GraphNode? _gpuGraph;
     private GraphNode? _ramGraph;
-    private CpuCoresNode? _coresNode;
+    private CoreMeterNode? _coresNode;
+    private BtopBoxNode? _cpuBox;
     private DataListNode<ProcessSnapshot>? _processList;
 
     public BtopPage(ITabNavigator tabNavigator, IThemeService theme)
@@ -50,7 +51,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             .WithGradient(theme.GraphGradient)
             .WithRange(0, 100);
 
-        _coresNode = new CpuCoresNode();
+        _coresNode = new CoreMeterNode().WithGradient(BtopGradients.Resource(theme));
 
         _processList = new DataListNode<ProcessSnapshot>(
             p =>
@@ -127,6 +128,12 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                 ViewModel.SortDescending.Select(_ => Unit.Default),
                 ViewModel.TreeMode.Select(_ => Unit.Default))
             .Subscribe(_ => _processList?.SetItems(ViewModel.GetFilteredProcesses()))
+            .DisposeWith(Subscriptions);
+
+        // Clock in the CPU box top border, updated once per second.
+        Observable.Interval(TimeSpan.FromSeconds(1), TimeProvider.System)
+            .Subscribe(_ =>
+                _cpuBox?.WithCenterTitle(TimeProvider.System.GetLocalNow().ToString("HH:mm:ss")))
             .DisposeWith(Subscriptions);
     }
 
@@ -357,7 +364,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     private ILayoutNode BuildCpuPanel()
     {
         var theme = _theme.Current;
-        return new BtopBoxNode()
+        _cpuBox = new BtopBoxNode()
             .WithTitle("cpu")
             .WithHotkey(1)
             .WithBorderColor(theme.Accent)
@@ -372,8 +379,8 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                                     .WithForeground(theme.Accent))
                             .AsLayout().Height(1))
                     .WithChild(_coresNode!)
-                    .WithChild(_cpuGraph!.Fill()))
-            .Fill();
+                    .WithChild(_cpuGraph!.Fill()));
+        return _cpuBox.Fill();
     }
 
     private ILayoutNode BuildCpuStripPanel()
@@ -386,11 +393,18 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
             .WithTitleColor(theme.PanelTitle)
             .WithHighlightColor(theme.Accent)
             .WithContent(
-                ViewModel.CpuTotal
-                    .Select<double, ILayoutNode>(pct =>
-                        new TextNode($" Total {pct:F1}%  {BuildBar(pct, 30)}  {ViewModel.CpuName.Value}")
-                            .WithForeground(theme.Accent))
-                    .AsLayout())
+                Layouts.Vertical()
+                    .WithChild(ViewModel.CpuTotal
+                        .Select<double, ILayoutNode>(pct =>
+                            new TextNode($" Total {pct:F1}%  {ViewModel.CpuName.Value}")
+                                .WithForeground(theme.Accent)).AsLayout().Height(1))
+                    .WithChild(new ProgressBarNode()
+                        .WithRange(0, 100)
+                        .WithValue(ViewModel.CpuTotal.Value)
+                        .WithGradient(BtopGradients.Resource(theme))
+                        .WithFillChar(BtopGradients.MeterFill)
+                        .WithEmptyChar(BtopGradients.MeterEmpty)
+                        .Height(1)))
             .Fill();
     }
 
@@ -493,9 +507,17 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         {
                             var usedGb = disk.UsedBytes / 1024.0 / 1024 / 1024;
                             var totalGb = disk.TotalBytes / 1024.0 / 1024 / 1024;
-                            layout.WithChild(
-                                new TextNode($" {disk.Name,-4} {usedGb:F0}/{totalGb:F0}GB {disk.UsedPercent:F0}%")
-                                    .WithForeground(theme.Foreground).Height(1));
+                            layout.WithChild(new TextNode(
+                                    $" {disk.Name,-4} {usedGb:F0}/{totalGb:F0}GB")
+                                .WithForeground(theme.Foreground).Height(1));
+                            layout.WithChild(new ProgressBarNode()
+                                .WithRange(0, 100)
+                                .WithValue(disk.UsedPercent)
+                                .WithGradient(BtopGradients.Resource(theme))
+                                .WithFillChar(BtopGradients.MeterFill)
+                                .WithEmptyChar(BtopGradients.MeterEmpty)
+                                .WithLabel("{0:P0}")
+                                .Height(1));
                         }
 
                         if (topNets.Count == 0 && disks.Count == 0)
@@ -529,12 +551,6 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
-
-    private static string BuildBar(double percent, int width)
-    {
-        var filled = Math.Clamp((int)(percent / 100.0 * width), 0, width);
-        return $"[{"".PadRight(filled, '█')}{new string('░', width - filled)}]";
-    }
 
     private static string FormatBytes(ulong bytes) => bytes switch
     {
