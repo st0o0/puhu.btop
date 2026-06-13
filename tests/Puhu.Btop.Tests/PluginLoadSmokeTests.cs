@@ -3,9 +3,12 @@ using Akka.DependencyInjection;
 using Akka.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Puhu.Btop.Core.Platform;
+using Puhu.Btop.Nodes;
 using Puhu.Btop.Services;
+using Puhu.Btop.Tests.Nodes;
 using Puhu.Plugin;
 using Termina.Hosting;
+using Termina.Layout;
 
 namespace Puhu.Btop.Tests;
 
@@ -55,6 +58,21 @@ public sealed class PluginLoadSmokeTests
         using var provider = builder.Services.BuildServiceProvider();
         Assert.NotNull(provider.GetRequiredService<IMetricSink>());
         Assert.NotNull(provider.GetRequiredService<IGpuMetrics>());
+    }
+
+    [Fact]
+    public void New_visual_nodes_render_without_throwing()
+    {
+        var box = new BtopBoxNode()
+            .WithTitle("cpu").WithHotkey(1).WithCenterTitle("00:00:00");
+        var cores = new CoreMeterNode();
+        cores.SetCores([10.0, 50.0, 90.0]);
+
+        var ctx = new TestRenderContext(40, 6);
+        box.Measure(new Size(40, 6));
+        box.Render(ctx, new Rect(0, 0, 40, 6));
+        cores.Measure(new Size(40, 3));
+        cores.Render(ctx, new Rect(0, 0, 40, 3));
     }
 
     /// <summary>
