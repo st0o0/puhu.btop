@@ -22,11 +22,15 @@ public class ProcessTreeBuilderTests
     {
         var parentMap = new Dictionary<int, int>
         {
-            [10] = 1, [5] = 1, [1] = 0,
+            [10] = 1,
+            [5] = 1,
+            [1] = 0,
         };
         var nameMap = new Dictionary<int, string>
         {
-            [1] = "root", [5] = "sshd", [10] = "bash",
+            [1] = "root",
+            [5] = "sshd",
+            [10] = "bash",
         };
 
         var tree = ProcessTreeBuilder.Build(1, parentMap, nameMap);
@@ -43,11 +47,15 @@ public class ProcessTreeBuilderTests
     {
         var parentMap = new Dictionary<int, int>
         {
-            [2] = 1, [3] = 2, [1] = 0,
+            [2] = 1,
+            [3] = 2,
+            [1] = 0,
         };
         var nameMap = new Dictionary<int, string>
         {
-            [1] = "root", [2] = "shell", [3] = "vim",
+            [1] = "root",
+            [2] = "shell",
+            [3] = "vim",
         };
 
         var tree = ProcessTreeBuilder.Build(1, parentMap, nameMap);
@@ -113,7 +121,9 @@ public class ProcessTreeBuilderTests
     {
         var parentMap = new Dictionary<int, int>
         {
-            [2] = 1, [3] = 1, [4] = 2,
+            [2] = 1,
+            [3] = 1,
+            [4] = 2,
         };
 
         var childrenMap = ProcessTreeBuilder.BuildChildrenMap(parentMap);

@@ -203,14 +203,14 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         grid.SetCell(1, 0, BuildMemoryPanel(), colSpan: 2);
                         break;
                     default:
-                    {
-                        if (showNet)
                         {
-                            grid.SetCell(1, 0, BuildNetDiskPanel(), colSpan: 2);
-                        }
+                            if (showNet)
+                            {
+                                grid.SetCell(1, 0, BuildNetDiskPanel(), colSpan: 2);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                 }
 
                 if (showProc)
@@ -271,14 +271,14 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                         grid.SetCell(1, 0, BuildMemoryPanel(), colSpan: 2);
                         break;
                     default:
-                    {
-                        if (showNet)
                         {
-                            grid.SetCell(1, 0, BuildNetDiskPanel(), colSpan: 2);
-                        }
+                            if (showNet)
+                            {
+                                grid.SetCell(1, 0, BuildNetDiskPanel(), colSpan: 2);
+                            }
 
-                        break;
-                    }
+                            break;
+                        }
                 }
 
                 if (showProc)
@@ -372,14 +372,14 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                     grid.SetCell(1, 0, BuildNetDiskPanel(), colSpan: 3);
                     break;
                 default:
-                {
-                    if (showProc)
                     {
-                        grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 3);
-                    }
+                        if (showProc)
+                        {
+                            grid.SetCell(1, 0, BuildProcessPanel(), colSpan: 3);
+                        }
 
-                    break;
-                }
+                        break;
+                    }
             }
 
             return grid;
