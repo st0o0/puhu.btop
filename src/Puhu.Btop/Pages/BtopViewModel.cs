@@ -29,7 +29,6 @@ public sealed record PendingProcessAction(int Pid, string ProcessName, string Ve
 
 public class BtopViewModel : ReactiveViewModel
 {
-    private readonly MetricStore _store;
     private readonly IMonitorDemand _demand;
     private readonly IGpuMetrics _gpuMetrics;
     private readonly ISettingsStore _settings;
@@ -40,7 +39,6 @@ public class BtopViewModel : ReactiveViewModel
     private IActorRef? _supervisorActor;
     private bool _disposed;
 
-    // ── Metrics ─────────────────────────────────────────────────────────────
     public ReactiveProperty<double> CpuTotal { get; } = new(0);
     public ReactiveProperty<IReadOnlyList<double>> CpuCores { get; } = new([]);
     public ReactiveProperty<string> CpuName { get; } = new("Loading...");
@@ -51,10 +49,8 @@ public class BtopViewModel : ReactiveViewModel
     public ReactiveProperty<GpuSnapshot?> Gpu { get; } = new(null);
     public bool GpuAvailable => _gpuMetrics.IsAvailable;
 
-    // ── Processes ────────────────────────────────────────────────────────────
     public ReactiveProperty<IReadOnlyList<ProcessSnapshot>> AllProcesses { get; } = new([]);
-
-    // ── UI state ─────────────────────────────────────────────────────────────
+    
     public ReactiveProperty<string> ProcessFilter { get; } = new("");
     public ReactiveProperty<bool> IsFilterMode { get; } = new(false);
     public ReactiveProperty<BtopSortField> SortField { get; }
@@ -84,7 +80,7 @@ public class BtopViewModel : ReactiveViewModel
     // Set by BtopPage so terminate/kill can target the highlighted row.
     public Func<ProcessSnapshot?>? GetSelectedProcess { get; set; }
 
-    public MetricStore Store => _store;
+    public MetricStore Store { get; }
 
     private static readonly string[] PresetNames = ["Standard", "CPU Focus", "Resource Grid", "Minimal"];
 
@@ -97,7 +93,7 @@ public class BtopViewModel : ReactiveViewModel
         IRequiredActor<MonitoringSupervisor> supervisor,
         IToastService toasts)
     {
-        _store = store;
+        Store = store;
         _demand = demand;
         _gpuMetrics = gpuMetrics;
         _settings = settings;
@@ -166,7 +162,7 @@ public class BtopViewModel : ReactiveViewModel
         ShowCpu.Subscribe(visible => PersistShow("show-cpu", visible)).DisposeWith(Subscriptions);
         ShowMemory.Subscribe(visible => PersistShow("show-memory", visible)).DisposeWith(Subscriptions);
 
-        _store.Cpu.Subscribe(s =>
+        Store.Cpu.Subscribe(s =>
         {
             if (s is null)
             {
@@ -182,7 +178,7 @@ public class BtopViewModel : ReactiveViewModel
             }
         }).DisposeWith(Subscriptions);
 
-        _store.Memory.Subscribe(s =>
+        Store.Memory.Subscribe(s =>
         {
             if (s is null)
             {
@@ -197,13 +193,13 @@ public class BtopViewModel : ReactiveViewModel
             }
         }).DisposeWith(Subscriptions);
 
-        _store.Disks.Subscribe(d => { Disks.Value = d; }).DisposeWith(Subscriptions);
+        Store.Disks.Subscribe(d => { Disks.Value = d; }).DisposeWith(Subscriptions);
 
-        _store.Networks.Subscribe(n => { Networks.Value = n; }).DisposeWith(Subscriptions);
+        Store.Networks.Subscribe(n => { Networks.Value = n; }).DisposeWith(Subscriptions);
 
-        _store.Processes.Subscribe(p => { AllProcesses.Value = p; }).DisposeWith(Subscriptions);
+        Store.Processes.Subscribe(p => { AllProcesses.Value = p; }).DisposeWith(Subscriptions);
 
-        _store.Gpu.Subscribe(g =>
+        Store.Gpu.Subscribe(g =>
         {
             if (g is null)
             {

@@ -38,7 +38,7 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
     private ILayoutNode _content = new EmptyNode();
 
     private string? _title;
-    private int _hotkey;            // 0 = none
+    private int _hotkey; // 0 = none
     private string? _centerTitle;
     private Color? _borderColor;
     private Color? _titleColor;
@@ -52,12 +52,42 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
         WidthConstraint = new SizeConstraint.Fill();
     }
 
-    public BtopBoxNode WithTitle(string title) { _title = title; return this; }
-    public BtopBoxNode WithHotkey(int hotkey) { _hotkey = hotkey; return this; }
-    public BtopBoxNode WithCenterTitle(string? centerTitle) { _centerTitle = centerTitle; _invalidated.OnNext(Unit.Default); return this; }
-    public BtopBoxNode WithBorderColor(Color color) { _borderColor = color; return this; }
-    public BtopBoxNode WithTitleColor(Color color) { _titleColor = color; return this; }
-    public BtopBoxNode WithHighlightColor(Color color) { _highlightColor = color; return this; }
+    public BtopBoxNode WithTitle(string title)
+    {
+        _title = title;
+        return this;
+    }
+
+    public BtopBoxNode WithHotkey(int hotkey)
+    {
+        _hotkey = hotkey;
+        return this;
+    }
+
+    public BtopBoxNode WithCenterTitle(string? centerTitle)
+    {
+        _centerTitle = centerTitle;
+        _invalidated.OnNext(Unit.Default);
+        return this;
+    }
+
+    public BtopBoxNode WithBorderColor(Color color)
+    {
+        _borderColor = color;
+        return this;
+    }
+
+    public BtopBoxNode WithTitleColor(Color color)
+    {
+        _titleColor = color;
+        return this;
+    }
+
+    public BtopBoxNode WithHighlightColor(Color color)
+    {
+        _highlightColor = color;
+        return this;
+    }
 
     public BtopBoxNode WithContent(ILayoutNode content)
     {
@@ -68,6 +98,7 @@ public sealed class BtopBoxNode : LayoutNode, IInvalidatingNode
         {
             _contentSub = inv.Invalidated.Subscribe(_ => _invalidated.OnNext(Unit.Default));
         }
+
         return this;
     }
 

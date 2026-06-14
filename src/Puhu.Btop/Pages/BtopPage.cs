@@ -5,8 +5,6 @@ using R3;
 using Termina.Extensions;
 using Termina.Layout;
 using Termina.Reactive;
-using Termina.Rendering;
-using Termina.Terminal;
 
 namespace Puhu.Btop.Pages;
 
@@ -97,7 +95,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
         KeyBindings.RegisterGlobalKeys(
             () => ViewModel.RequestShutdown(),
-            path => Navigate(path),
+            Navigate,
             _tabNavigator);
 
         // Live theme re-render: theme colors/gradient are baked into nodes at
@@ -145,15 +143,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                 ViewModel.TreeMode.Select(_ => Unit.Default))
             .Subscribe(_ => _processList?.SetItems(ViewModel.GetFilteredProcesses()))
             .DisposeWith(Subscriptions);
-
-        // Clock in the CPU box top border, updated once per second.
-        Observable.Interval(TimeSpan.FromSeconds(1), TimeProvider.System)
-            .Subscribe(_ =>
-                _cpuBox?.WithCenterTitle(TimeProvider.System.GetLocalNow().ToString("HH:mm:ss")))
-            .DisposeWith(Subscriptions);
     }
-
-    // ── Preset layouts ───────────────────────────────────────────────────────
 
     private ILayoutNode BuildGridForPreset(int preset) => preset switch
     {
@@ -339,7 +329,7 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
         var showMem = ViewModel.ShowMemory.Value;
         var showNet = ViewModel.ShowNetDisk.Value;
         var showProc = ViewModel.ShowProcesses.Value;
-        var showGpu = ViewModel.GpuAvailable && ViewModel.ShowGpu.Value;
+        var showGpu = ViewModel is { GpuAvailable: true, ShowGpu.Value: true };
 
         if (showGpu)
         {
@@ -438,8 +428,6 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
 
         return grid;
     }
-
-    // ── Panel builders ───────────────────────────────────────────────────────
 
     private ILayoutNode BuildCpuPanel()
     {
@@ -669,8 +657,6 @@ public sealed class BtopPage : ReactivePage<BtopViewModel>, IKeyHintProvider
                     .WithChild(_processList!.Fill()))
             .Fill();
     }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string FormatBytes(ulong bytes) => bytes switch
     {
