@@ -10,7 +10,7 @@ namespace Puhu.Btop.Tests;
 /// </summary>
 public sealed class DeploymentContractTests
 {
-    [Theory]
+    [Theory(Timeout = 30000)]
     [InlineData("Servus.Akka")]
     [InlineData("Servus.Core")]
     public void Plugin_assembly_does_not_reference_host_absent_assembly(string forbidden)

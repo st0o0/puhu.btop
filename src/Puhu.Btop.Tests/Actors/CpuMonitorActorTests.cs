@@ -1,5 +1,4 @@
 using Akka.Actor;
-using Akka.DependencyInjection;
 using Akka.Hosting;
 using Akka.Hosting.TestKit;
 using Microsoft.Extensions.DependencyInjection;

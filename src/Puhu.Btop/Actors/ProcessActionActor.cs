@@ -14,6 +14,12 @@ public sealed class ProcessActionActor : ReceiveActor
     {
         Receive<KillProcess>(msg =>
         {
+            if (!IsValidPid(msg.Pid))
+            {
+                Sender.Tell(new ActionFailure(InvalidPidMessage(msg.Pid)));
+                return;
+            }
+
             try
             {
                 using var proc = Process.GetProcessById(msg.Pid);
@@ -28,6 +34,12 @@ public sealed class ProcessActionActor : ReceiveActor
 
         Receive<SetProcessPriority>(msg =>
         {
+            if (!IsValidPid(msg.Pid))
+            {
+                Sender.Tell(new ActionFailure(InvalidPidMessage(msg.Pid)));
+                return;
+            }
+
             try
             {
                 using var proc = Process.GetProcessById(msg.Pid);
@@ -42,6 +54,12 @@ public sealed class ProcessActionActor : ReceiveActor
 
         Receive<SetProcessAffinity>(msg =>
         {
+            if (!IsValidPid(msg.Pid))
+            {
+                Sender.Tell(new ActionFailure(InvalidPidMessage(msg.Pid)));
+                return;
+            }
+
             try
             {
                 using var proc = Process.GetProcessById(msg.Pid);
@@ -64,6 +82,12 @@ public sealed class ProcessActionActor : ReceiveActor
 
         Receive<GetProcessTree>(msg =>
         {
+            if (!IsValidPid(msg.Pid))
+            {
+                Sender.Tell(new ActionFailure(InvalidPidMessage(msg.Pid)));
+                return;
+            }
+
             try
             {
                 var tree = treeProvider.BuildTree(msg.Pid);
@@ -77,6 +101,12 @@ public sealed class ProcessActionActor : ReceiveActor
 
         Receive<GetProcessEnvironment>(msg =>
         {
+            if (!IsValidPid(msg.Pid))
+            {
+                Sender.Tell(new ActionFailure(InvalidPidMessage(msg.Pid)));
+                return;
+            }
+
             try
             {
                 using var proc = Process.GetProcessById(msg.Pid);
@@ -95,6 +125,12 @@ public sealed class ProcessActionActor : ReceiveActor
 
         Receive<GetProcessHandles>(msg =>
         {
+            if (!IsValidPid(msg.Pid))
+            {
+                Sender.Tell(new ActionFailure(InvalidPidMessage(msg.Pid)));
+                return;
+            }
+
             try
             {
                 var modules = GetProcessModules(msg.Pid);
@@ -106,6 +142,14 @@ public sealed class ProcessActionActor : ReceiveActor
             }
         });
     }
+
+    // A non-positive PID is never a real process. On Linux Process.GetProcessById(-1)
+    // does NOT throw (it does on Windows) and a subsequent Process.Kill() issues
+    // kill(-1, SIGKILL) — i.e. "signal every process the caller can" — which is
+    // catastrophic. Reject these before touching any Process API.
+    private static bool IsValidPid(int pid) => pid > 0;
+
+    private static string InvalidPidMessage(int pid) => $"Invalid process id {pid}.";
 
     private static IReadOnlyList<string> GetProcessModules(int pid)
     {
