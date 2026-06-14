@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>$(NetVersion)</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>Puhu.Btop</RootNamespace>
   </PropertyGroup>
@@ -9,8 +8,5 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Puhu.Btop.Tests" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Servus.Akka" />
   </ItemGroup>
 </Project>

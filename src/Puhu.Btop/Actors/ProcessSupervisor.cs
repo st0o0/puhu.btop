@@ -1,7 +1,6 @@
 using Akka.Actor;
 using Puhu.Btop.Core.Messages;
 using Puhu.Plugin;
-using Servus.Akka;
 
 namespace Puhu.Btop.Actors;
 

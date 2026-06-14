@@ -22,8 +22,6 @@ public class BtopViewModelTests : IDisposable
 
     public void Dispose() => _system.Dispose();
 
-    // ── Fakes ────────────────────────────────────────────────────────────────
-
     private sealed class FakeSettingsStore : ISettingsStore
     {
         public readonly Dictionary<string, object?> Values = new();
@@ -92,6 +90,7 @@ public class BtopViewModelTests : IDisposable
     private sealed class ProbeRequiredActor(IActorRef probe) : IRequiredActor<MonitoringSupervisor>
     {
         public IActorRef ActorRef => probe;
+
         public Task<IActorRef> GetAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult(probe);
     }
@@ -128,14 +127,13 @@ public class BtopViewModelTests : IDisposable
         // reflection so OnActivated's input subscription has something to attach to.
         var wireUp = typeof(ReactiveViewModel).GetMethod(
             "WireUp", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        wireUp.Invoke(vm, new object?[]
-        {
+        wireUp.Invoke(vm, [
             (Action<string>)(_ => { }),
             (Action<string, object?>)((_, _) => { }),
             (Action)(() => { }),
             (Action)(() => { }),
-            input.AsObservable(),
-        });
+            input.AsObservable()
+        ]);
 
         return vm;
     }
@@ -143,9 +141,7 @@ public class BtopViewModelTests : IDisposable
     private BtopViewModel CreateVm(out FakeSettingsStore settings, out CountingDemand demand) =>
         CreateVm(out settings, out demand, out _, out _);
 
-    // ── Tests ────────────────────────────────────────────────────────────────
-
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void TogglingBoxOffThenOn_ReleasesThenReAcquiresDemand()
     {
         var vm = CreateVm(out _, out var demand);
@@ -170,7 +166,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void SettingProcessFilter_NarrowsFilteredProcessList()
     {
         var vm = CreateVm(out _, out _);
@@ -195,7 +191,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CyclingSortField_PersistsToSettingsStore()
     {
         var vm = CreateVm(out var settings, out _);
@@ -222,7 +218,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ToggleTreeMode_FlipsAndPersists()
     {
         var vm = CreateVm(out var settings, out _, out var input, out _);
@@ -243,7 +239,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void TreeMode_OrdersChildrenUnderParentsWithDepth()
     {
         var vm = CreateVm(out _, out _, out _, out _);
@@ -273,7 +269,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ArrowKeys_CycleSortFieldThroughAllColumnsAndPersist()
     {
         var vm = CreateVm(out var settings, out _, out var input, out _);
@@ -301,7 +297,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void KillConfirm_ConfirmDispatchesKill_CancelSendsNothing()
     {
         var vm = CreateVm(out _, out _, out var input, out var supervisor);
@@ -333,7 +329,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Enter_AppliesFilterAndLeavesEditMode()
     {
         var vm = CreateVm(out _, out _, out var input, out _);
@@ -361,7 +357,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Pressing5_TogglesGpuBox_WhenGpuAvailable()
     {
         var vm = CreateVm(out var settings, out _, out var input, out _, gpu: new FakeGpuMetrics());
@@ -381,7 +377,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Pressing5_DoesNothing_WhenNoGpu()
     {
         // NoGpuMetrics (default) → the GPU box doesn't exist, so '5' is inert.
@@ -394,7 +390,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ProcessHeader_MarksActiveSortColumnWithDirectionArrow()
     {
         var vm = CreateVm(out _, out _);
@@ -414,7 +410,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void KillWithNoSelection_ShowsToastInsteadOfSilentlyDoingNothing()
     {
         var vm = CreateVm(out _, out _, out var input, out _);
@@ -429,7 +425,7 @@ public class BtopViewModelTests : IDisposable
         vm.Dispose();
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ConfirmingKill_ShowsImmediateFeedbackToast()
     {
         var vm = CreateVm(out _, out _, out var input, out _);

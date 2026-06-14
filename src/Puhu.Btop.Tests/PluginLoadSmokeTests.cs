@@ -20,14 +20,14 @@ namespace Puhu.Btop.Tests;
 /// </summary>
 public sealed class PluginLoadSmokeTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Plugin_Name_Is_Btop()
     {
         var plugin = new BtopPlugin();
         Assert.Equal("Btop", plugin.Name);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Plugin_Configure_Registers_Tab_Route_And_Services_Without_Throwing()
     {
         var plugin = new BtopPlugin();
@@ -60,7 +60,7 @@ public sealed class PluginLoadSmokeTests
         Assert.NotNull(provider.GetRequiredService<IGpuMetrics>());
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void New_visual_nodes_render_without_throwing()
     {
         var box = new BtopBoxNode()

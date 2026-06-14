@@ -6,7 +6,7 @@ namespace Puhu.Btop.Tests.Nodes;
 
 public class CoreMeterNodeTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Empty_cores_measure_to_zero_height()
     {
         var node = new CoreMeterNode();
@@ -14,7 +14,7 @@ public class CoreMeterNodeTests
         Assert.Equal(0, size.Height);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Renders_label_meter_and_percent_per_core()
     {
         var node = new CoreMeterNode().WithGradient(Gradient.Create(Color.Green, Color.Red));
@@ -32,7 +32,7 @@ public class CoreMeterNodeTests
         Assert.Contains(BtopGradients.MeterFill.ToString(), all);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Higher_percent_fills_more_cells_than_lower_percent()
     {
         var fill = BtopGradients.MeterFill;

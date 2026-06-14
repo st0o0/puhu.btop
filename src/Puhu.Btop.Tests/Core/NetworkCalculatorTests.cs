@@ -4,7 +4,7 @@ namespace Puhu.Btop.Tests.Core;
 
 public class NetworkCalculatorTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculateDelta_returns_difference_from_previous()
     {
         var (rx, tx) = NetworkCalculator.CalculateDelta(
@@ -15,7 +15,7 @@ public class NetworkCalculatorTests
         Assert.Equal(500UL, tx);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculateDelta_clamps_negative_to_zero()
     {
         var (rx, tx) = NetworkCalculator.CalculateDelta(
@@ -26,7 +26,7 @@ public class NetworkCalculatorTests
         Assert.Equal(0UL, tx);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculateDelta_returns_zero_when_no_previous()
     {
         var (rx, tx) = NetworkCalculator.CalculateDelta(
@@ -37,13 +37,13 @@ public class NetworkCalculatorTests
         Assert.Equal(0UL, tx);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void TruncateName_returns_short_name_unchanged()
     {
         Assert.Equal("eth0", NetworkCalculator.TruncateName("eth0", 20));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void TruncateName_truncates_long_name_with_ellipsis()
     {
         var longName = "Very Long Network Interface Name";
@@ -53,25 +53,25 @@ public class NetworkCalculatorTests
         Assert.Equal(23, result.Length);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ShouldInclude_returns_true_for_up_interface_with_speed()
     {
         Assert.True(NetworkCalculator.ShouldInclude(isUp: true, speed: 1_000_000));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ShouldInclude_returns_false_for_down_interface()
     {
         Assert.False(NetworkCalculator.ShouldInclude(isUp: false, speed: 1_000_000));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ShouldInclude_returns_false_for_zero_speed()
     {
         Assert.False(NetworkCalculator.ShouldInclude(isUp: true, speed: 0));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void BuildSnapshots_integrates_all_logic()
     {
         var interfaces = new[]

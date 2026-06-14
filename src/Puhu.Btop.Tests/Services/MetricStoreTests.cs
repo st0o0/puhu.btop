@@ -5,7 +5,7 @@ namespace Puhu.Btop.Tests.Services;
 
 public class MetricStoreTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void PublishCpu_SetsLatest_AndPushesHistory()
     {
         var store = new MetricStore();
@@ -16,7 +16,7 @@ public class MetricStoreTests
         Assert.Equal([42.0], store.CpuHistory.Snapshot());
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void PublishMemory_PushesUsedPercentHistory()
     {
         var store = new MetricStore();
@@ -26,7 +26,7 @@ public class MetricStoreTests
         Assert.Equal([25.0], store.MemHistory.Snapshot());
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void KeyedHistory_SameKey_SameInstance()
     {
         var store = new MetricStore();
@@ -37,7 +37,7 @@ public class MetricStoreTests
         Assert.Same(a, b);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void KeyedHistory_EvictsLeastRecentlyUsed_BeyondLimit()
     {
         var store = new MetricStore(keyedHistoryLimit: 2);
@@ -50,7 +50,7 @@ public class MetricStoreTests
         Assert.NotSame(first, again);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ConcurrentPublish_DoesNotThrow_AndKeepsHistoryConsistent()
     {
         var store = new MetricStore();

@@ -14,7 +14,7 @@ public class BtopBoxNodeTests
         return (ctx, box);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Renders_rounded_corners()
     {
         var (ctx, _) = Render(new BtopBoxNode(), 10, 3);
@@ -24,7 +24,7 @@ public class BtopBoxNodeTests
         Assert.Equal('╯', ctx.Row(2)[^1]);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Renders_title_with_brackets_and_superscript_hotkey_at_offset_two()
     {
         var box = new BtopBoxNode().WithTitle("cpu").WithHotkey(1);
@@ -35,7 +35,7 @@ public class BtopBoxNodeTests
         Assert.Equal("┤¹cpu├", top.Substring(2, 6));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Hotkey_digit_uses_highlight_color()
     {
         var box = new BtopBoxNode().WithTitle("cpu").WithHotkey(1)
@@ -45,7 +45,7 @@ public class BtopBoxNodeTests
         Assert.Equal(Color.Yellow, ctx.ColorAt(3, 0)); // superscript cell
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Title_without_hotkey_starts_directly_after_left_bracket()
     {
         // No hotkey → no superscript glyph; title sits right after ┤
@@ -54,14 +54,14 @@ public class BtopBoxNodeTests
         Assert.Equal("┤net├", ctx.Row(0).Substring(2, 5));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Empty_bounds_do_not_throw()
     {
         var box = new BtopBoxNode().WithTitle("cpu");
         box.Render(new TestRenderContext(0, 0), new Rect(0, 0, 0, 0));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Content_renders_inside_the_border()
     {
         var box = new BtopBoxNode().WithContent(new TextNode("X"));
@@ -71,7 +71,7 @@ public class BtopBoxNodeTests
         Assert.Equal("X", ctx.Row(1).Substring(1, 1));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Center_title_is_drawn_centered_in_top_border()
     {
         var box = new BtopBoxNode().WithTitle("cpu").WithHotkey(1).WithCenterTitle("14:32:07");
@@ -81,7 +81,7 @@ public class BtopBoxNodeTests
         Assert.Contains("┤ 14:32:07 ├", top);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Center_title_is_omitted_when_box_too_narrow()
     {
         var box = new BtopBoxNode().WithTitle("cpu").WithHotkey(1).WithCenterTitle("14:32:07");
@@ -90,7 +90,7 @@ public class BtopBoxNodeTests
         Assert.DoesNotContain("14:32:07", ctx.Row(0));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Title_without_hotkey_is_not_over_truncated()
     {
         // Width 9: ╭─┤proc├╮ — "proc" (4 chars) must appear untruncated.

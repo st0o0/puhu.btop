@@ -1,5 +1,6 @@
-using System.Collections.Concurrent;
 using Akka.Actor;
+using Akka.Hosting;
+using Akka.Hosting.TestKit;
 using Puhu.Btop.Actors;
 using Puhu.Btop.Core.Messages;
 using Tick = Puhu.Plugin.Tick;
@@ -9,114 +10,86 @@ using DemandChanged = Puhu.Btop.Actors.DemandChanged;
 namespace Puhu.Btop.Tests.Actors;
 
 /// <summary>Tests for TickRouter demand distribution logic (using a standalone TickRouter instance).</summary>
-public class MonitoringSupervisorTickTests : IAsyncLifetime
+public sealed class MonitoringSupervisorTickTests : TestKit
 {
-    private ActorSystem _sys = null!;
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public ValueTask InitializeAsync()
+    protected override void ConfigureAkka(AkkaConfigurationBuilder builder, IServiceProvider provider)
     {
-        _sys = ActorSystem.Create("tick-router-test");
-        return ValueTask.CompletedTask;
+        // No actors at startup — each test spins up its own TickRouter.
     }
 
-    public async ValueTask DisposeAsync() => await _sys.Terminate();
+    private IActorRef CreateRouter() => Sys.ActorOf(Props.Create(() => new TickRouter()));
 
-    private IActorRef CreateRecorder(ConcurrentQueue<Tick> queue) =>
-        _sys.ActorOf(Akka.Actor.Props.Create(() => new RecorderActor(queue)));
-
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task AlwaysOn_ReceivesEveryTick_WithoutDemand()
     {
-        var received = new ConcurrentQueue<Tick>();
-        var recorder = CreateRecorder(received);
-        var router = _sys.ActorOf(Akka.Actor.Props.Create(() => new TickRouter()));
-
-        router.Tell(new RegisterMonitor(MetricKind.Cpu, recorder, AlwaysOn: true, MinInterval: null));
+        var probe = CreateTestProbe();
+        var router = CreateRouter();
+        router.Tell(new RegisterMonitor(MetricKind.Cpu, probe, AlwaysOn: true, MinInterval: null));
 
         router.Tell(new Tick(0, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(1, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(2, TimeSpan.FromMilliseconds(1000)));
 
-        await Task.Delay(300, TestContext.Current.CancellationToken);
-
-        Assert.Equal(3, received.Count);
+        await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
+        await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
+        await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task OnDemand_WithNoDemand_ReceivesNothing()
     {
-        var received = new ConcurrentQueue<Tick>();
-        var recorder = CreateRecorder(received);
-        var router = _sys.ActorOf(Akka.Actor.Props.Create(() => new TickRouter()));
-
-        router.Tell(new RegisterMonitor(MetricKind.Disk, recorder, AlwaysOn: false, MinInterval: null));
+        var probe = CreateTestProbe();
+        var router = CreateRouter();
+        router.Tell(new RegisterMonitor(MetricKind.Disk, probe, AlwaysOn: false, MinInterval: null));
 
         router.Tell(new Tick(0, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(1, TimeSpan.FromMilliseconds(1000)));
 
-        await Task.Delay(300, TestContext.Current.CancellationToken);
-
-        Assert.Empty(received);
+        await probe.ExpectNoMsgAsync(TimeSpan.FromMilliseconds(300), Ct);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task DemandPlusOne_ReceivesTicks_ThenMinusOne_StopsTicks()
     {
-        var received = new ConcurrentQueue<Tick>();
-        var recorder = CreateRecorder(received);
-        var router = _sys.ActorOf(Akka.Actor.Props.Create(() => new TickRouter()));
+        var probe = CreateTestProbe();
+        var router = CreateRouter();
+        router.Tell(new RegisterMonitor(MetricKind.Network, probe, AlwaysOn: false, MinInterval: null));
 
-        router.Tell(new RegisterMonitor(MetricKind.Network, recorder, AlwaysOn: false, MinInterval: null));
-
-        // Raise demand
+        // Raise demand, then ticks flow. Messages to one actor are ordered, so the
+        // demand is processed before the ticks — no sleep needed.
         router.Tell(new DemandChanged(MetricKind.Network, +1));
-        await Task.Delay(100, TestContext.Current.CancellationToken); // allow demand message to be processed
-
         router.Tell(new Tick(0, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(1, TimeSpan.FromMilliseconds(1000)));
-        await Task.Delay(200, TestContext.Current.CancellationToken);
+        await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
+        await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
 
-        Assert.Equal(2, received.Count);
-
-        // Drop demand
+        // Drop demand → no further ticks forwarded.
         router.Tell(new DemandChanged(MetricKind.Network, -1));
-        await Task.Delay(100, TestContext.Current.CancellationToken); // allow demand message to be processed
-
         router.Tell(new Tick(2, TimeSpan.FromMilliseconds(1000)));
         router.Tell(new Tick(3, TimeSpan.FromMilliseconds(1000)));
-        await Task.Delay(200, TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, received.Count); // no new ticks forwarded
+        await probe.ExpectNoMsgAsync(TimeSpan.FromMilliseconds(300), Ct);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task MinInterval_3s_At_1000msBase_OnlyForwardsSeq_0_3_6()
     {
-        var received = new ConcurrentQueue<Tick>();
-        var recorder = CreateRecorder(received);
-        var router = _sys.ActorOf(Akka.Actor.Props.Create(() => new TickRouter()));
+        var probe = CreateTestProbe();
+        var router = CreateRouter();
 
-        // AlwaysOn, MinInterval = 3s → every = ceil(3000/1000) = 3, so seq % 3 == 0
-        router.Tell(new RegisterMonitor(MetricKind.Gpu, recorder, AlwaysOn: true, MinInterval: TimeSpan.FromSeconds(3)));
+        // AlwaysOn, MinInterval = 3s → every = ceil(3000/1000) = 3, so seq % 3 == 0.
+        router.Tell(new RegisterMonitor(MetricKind.Gpu, probe, AlwaysOn: true, MinInterval: TimeSpan.FromSeconds(3)));
 
         for (long seq = 0; seq <= 6; seq++)
         {
             router.Tell(new Tick(seq, TimeSpan.FromMilliseconds(1000)));
         }
 
-        await Task.Delay(400, TestContext.Current.CancellationToken);
-
-        // Should receive seq 0, 3, 6 only (3 ticks)
-        Assert.Equal(3, received.Count);
-        var seqs = received.Select(t => t.Seq).OrderBy(s => s).ToList();
-        Assert.Equal([0L, 3L, 6L], seqs);
-    }
-
-    private sealed class RecorderActor : ReceiveActor
-    {
-        public RecorderActor(ConcurrentQueue<Tick> queue)
-        {
-            Receive<Tick>(t => queue.Enqueue(t));
-        }
+        var t0 = await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
+        var t3 = await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
+        var t6 = await probe.ExpectMsgAsync<Tick>(cancellationToken: Ct);
+        Assert.Equal([0L, 3L, 6L], new[] { t0.Seq, t3.Seq, t6.Seq });
+        await probe.ExpectNoMsgAsync(TimeSpan.FromMilliseconds(200), Ct);
     }
 }

@@ -7,7 +7,7 @@ namespace Puhu.Btop.Platform.Windows;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsDiskMetrics : IDiskMetrics
 {
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private IntPtr _query;
     private readonly Dictionary<string, (IntPtr Read, IntPtr Write, IntPtr Active)> _counters = new();
     private volatile bool _ready;

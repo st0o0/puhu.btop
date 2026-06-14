@@ -4,7 +4,7 @@ namespace Puhu.Btop.Tests.Core;
 
 public class ProcessTreeBuilderTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Build_single_root_no_children()
     {
         var parentMap = new Dictionary<int, int> { [1] = 0 };
@@ -17,7 +17,7 @@ public class ProcessTreeBuilderTests
         Assert.Empty(tree.Children);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Build_root_with_two_children_sorted_by_pid()
     {
         var parentMap = new Dictionary<int, int>
@@ -38,7 +38,7 @@ public class ProcessTreeBuilderTests
         Assert.Equal("bash", tree.Children[1].Name);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Build_nested_three_levels()
     {
         var parentMap = new Dictionary<int, int>
@@ -57,7 +57,7 @@ public class ProcessTreeBuilderTests
         Assert.Equal("vim", tree.Children[0].Children[0].Name);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Build_limits_depth_to_5()
     {
         // Chain: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
@@ -83,7 +83,7 @@ public class ProcessTreeBuilderTests
         Assert.Equal(5, depth);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Build_uses_fallback_name_for_unknown_pid()
     {
         var parentMap = new Dictionary<int, int> { [99] = 1 };
@@ -96,7 +96,7 @@ public class ProcessTreeBuilderTests
         Assert.Equal("child", tree.Children[0].Name);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Build_handles_empty_maps()
     {
         var tree = ProcessTreeBuilder.Build(1,
@@ -108,7 +108,7 @@ public class ProcessTreeBuilderTests
         Assert.Empty(tree.Children);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void BuildChildrenMap_groups_children_correctly()
     {
         var parentMap = new Dictionary<int, int>

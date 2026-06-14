@@ -1,30 +1,38 @@
 using Akka.Actor;
+using Akka.DependencyInjection;
+using Akka.Hosting;
+using Akka.Hosting.TestKit;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using Puhu.Btop.Actors;
-using Puhu.Btop.Core.Messages;
 using Puhu.Btop.Core.Models;
 using Puhu.Btop.Core.Platform;
 using Puhu.Btop.Services;
 using Puhu.Plugin;
-using NSubstitute;
 
 namespace Puhu.Btop.Tests.Actors;
 
-public class ProcessMonitorActorTests : IAsyncLifetime
+public sealed class ProcessMonitorActorTests : TestKit
 {
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
     private readonly IProcessClassifier _classifier = Substitute.For<IProcessClassifier>();
     private readonly IProcessTreeProvider _treeProvider = Substitute.For<IProcessTreeProvider>();
-    private readonly IMetricSink _sink = Substitute.For<IMetricSink>();
-    private ActorSystem _sys = null!;
+    private readonly ForwardingMetricSink _sink = new();
 
-    public ValueTask InitializeAsync()
+    protected override void ConfigureServices(HostBuilderContext context, IServiceCollection services)
     {
-        _sys = ActorSystem.Create("test");
-        return ValueTask.CompletedTask;
+        services.AddSingleton(_classifier);
+        services.AddSingleton(_treeProvider);
+        services.AddSingleton<IMetricSink>(_sink);
     }
 
-    public async ValueTask DisposeAsync() => await _sys.Terminate();
+    protected override void ConfigureAkka(AkkaConfigurationBuilder builder, IServiceProvider provider) =>
+        builder.WithActors((system, registry, resolver) =>
+            registry.Register<ProcessMonitorActor>(system.ActorOf(resolver.Props<ProcessMonitorActor>(), "process-monitor")));
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task Tick_PopulatesParentPidFromTreeProvider()
     {
         // The tree provider knows this (real, running) test process's parent.
@@ -33,15 +41,13 @@ public class ProcessMonitorActorTests : IAsyncLifetime
         _classifier.Classify(Arg.Any<System.Diagnostics.Process>()).Returns(ProcessGroup.Apps);
         _treeProvider.ReadParentMap().Returns(new Dictionary<int, int> { [selfPid] = sentinelParent });
 
-        IReadOnlyList<ProcessSnapshot>? published = null;
-        _sink.Publish(Arg.Do<IReadOnlyList<ProcessSnapshot>>(list => published = list));
+        var probe = CreateTestProbe();
+        _sink.Target = probe;
 
-        var actor = _sys.ActorOf(ProcessMonitorActor.Props(_classifier, _treeProvider, _sink));
-        actor.Tell(new Tick(0, TimeSpan.FromMilliseconds(500)));
-        await Task.Delay(300, TestContext.Current.CancellationToken);
+        ActorRegistry.Get<ProcessMonitorActor>().Tell(new Tick(0, TimeSpan.FromMilliseconds(500)));
 
-        Assert.NotNull(published);
-        var self = published!.FirstOrDefault(p => p.Pid == selfPid);
+        var published = await probe.ExpectMsgAsync<IReadOnlyList<ProcessSnapshot>>(cancellationToken: Ct);
+        var self = published.FirstOrDefault(p => p.Pid == selfPid);
         Assert.NotNull(self);
         Assert.Equal(sentinelParent, self!.ParentPid);
     }

@@ -8,18 +8,19 @@ namespace Puhu.Btop.Tests.Platform;
 [SupportedOSPlatform("windows")]
 public class WindowsPlatformSmokeTests
 {
-    [Fact]
-    public void DiskMetrics_after_initialize_returns_without_throwing()
+    [Fact(Timeout = 30000)]
+    public async Task DiskMetrics_after_initialize_returns_without_throwing()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         using var metrics = new WindowsDiskMetrics();
         metrics.Initialize();
-        Thread.Sleep(1100);
+        // Let the PDH counter accumulate a sample before reading.
+        await Task.Delay(1100, TestContext.Current.CancellationToken);
         var (read, write, active) = metrics.GetMetrics("C:");
         Assert.InRange(active, 0, 100);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ProcessTree_builds_without_throwing()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
@@ -27,7 +28,7 @@ public class WindowsPlatformSmokeTests
         Assert.NotNull(tree);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void ReadParentMap_includes_this_process_with_a_real_parent()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");

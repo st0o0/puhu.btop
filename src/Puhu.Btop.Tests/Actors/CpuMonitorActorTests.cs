@@ -1,48 +1,59 @@
 using Akka.Actor;
+using Akka.DependencyInjection;
+using Akka.Hosting;
+using Akka.Hosting.TestKit;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using NSubstitute;
 using Puhu.Btop.Actors;
 using Puhu.Btop.Core.Models;
 using Puhu.Btop.Core.Platform;
 using Puhu.Btop.Services;
 using Puhu.Plugin;
-using NSubstitute;
 
 namespace Puhu.Btop.Tests.Actors;
 
-public class CpuMonitorActorTests : IAsyncLifetime
+public sealed class CpuMonitorActorTests : TestKit
 {
-    private readonly ICpuMetrics _cpuMetrics = Substitute.For<ICpuMetrics>();
-    private readonly IMetricSink _sink = Substitute.For<IMetricSink>();
-    private ActorSystem _sys = null!;
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public ValueTask InitializeAsync()
+    private readonly ICpuMetrics _cpuMetrics = Substitute.For<ICpuMetrics>();
+    private readonly ForwardingMetricSink _sink = new();
+
+    protected override void ConfigureServices(HostBuilderContext context, IServiceCollection services)
     {
-        _sys = ActorSystem.Create("test");
-        return ValueTask.CompletedTask;
+        services.AddSingleton(_cpuMetrics);
+        services.AddSingleton<IMetricSink>(_sink);
     }
 
-    public async ValueTask DisposeAsync() => await _sys.Terminate();
+    protected override void ConfigureAkka(AkkaConfigurationBuilder builder, IServiceProvider provider) =>
+        builder.WithActors((system, registry, resolver) =>
+            registry.Register<CpuMonitorActor>(system.ActorOf(resolver.Props<CpuMonitorActor>(), "cpu-monitor")));
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task Tick_Samples_AndPublishesToSink()
     {
         _cpuMetrics.ProcessorName.Returns("Test CPU");
         _cpuMetrics.Measure().Returns(new CpuMeasurement(42.0, [10, 20, 30, 40]));
-        var actor = _sys.ActorOf(CpuMonitorActor.Props(_cpuMetrics, _sink));
+        var probe = CreateTestProbe();
+        _sink.Target = probe;
 
-        actor.Tell(new Tick(0, TimeSpan.FromMilliseconds(500)));
-        await Task.Delay(200, TestContext.Current.CancellationToken);
+        ActorRegistry.Get<CpuMonitorActor>().Tell(new Tick(0, TimeSpan.FromMilliseconds(500)));
 
-        _sink.Received(1).Publish(Arg.Is<CpuSnapshot>(s =>
-            s.Name == "Test CPU" && s.TotalPercent == 42.0 && s.CorePercents.Count == 4));
+        var snapshot = await probe.ExpectMsgAsync<CpuSnapshot>(cancellationToken: Ct);
+        Assert.Equal("Test CPU", snapshot.Name);
+        Assert.Equal(42.0, snapshot.TotalPercent);
+        Assert.Equal(4, snapshot.CorePercents.Count);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public async Task NoTick_NoPublish()
     {
-        var actor = _sys.ActorOf(CpuMonitorActor.Props(_cpuMetrics, _sink));
+        var probe = CreateTestProbe();
+        _sink.Target = probe;
 
-        await Task.Delay(200, TestContext.Current.CancellationToken);
+        _ = ActorRegistry.Get<CpuMonitorActor>();
 
-        _sink.DidNotReceive().Publish(Arg.Any<CpuSnapshot>());
+        await probe.ExpectNoMsgAsync(TimeSpan.FromMilliseconds(300), Ct);
     }
 }

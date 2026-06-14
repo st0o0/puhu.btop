@@ -6,7 +6,7 @@ namespace Puhu.Btop.Tests.Nodes;
 
 public class BtopGradientsTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Resource_samples_success_at_zero_and_error_at_one()
     {
         var theme = new ThemeDefinition
@@ -22,7 +22,7 @@ public class BtopGradientsTests
         Assert.Equal(Color.Red, gradient.Sample(1f));
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void MeterFill_and_MeterEmpty_are_the_btop_glyphs()
     {
         Assert.Equal('■', BtopGradients.MeterFill);  // U+25A0

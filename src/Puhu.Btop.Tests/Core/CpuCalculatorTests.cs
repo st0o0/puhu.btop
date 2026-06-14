@@ -4,7 +4,7 @@ namespace Puhu.Btop.Tests.Core;
 
 public class CpuCalculatorTests
 {
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculatePercent_returns_50_when_half_idle()
     {
         var result = CpuCalculator.CalculatePercent(
@@ -14,7 +14,7 @@ public class CpuCalculatorTests
         Assert.Equal(50.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculatePercent_returns_0_when_fully_idle()
     {
         var result = CpuCalculator.CalculatePercent(
@@ -24,7 +24,7 @@ public class CpuCalculatorTests
         Assert.Equal(0.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculatePercent_returns_100_when_zero_idle()
     {
         var result = CpuCalculator.CalculatePercent(
@@ -34,7 +34,7 @@ public class CpuCalculatorTests
         Assert.Equal(100.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculatePercent_clamps_negative_to_0()
     {
         var result = CpuCalculator.CalculatePercent(
@@ -44,7 +44,7 @@ public class CpuCalculatorTests
         Assert.Equal(0.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void CalculatePercent_returns_0_when_totalDelta_is_zero()
     {
         var result = CpuCalculator.CalculatePercent(
@@ -54,7 +54,7 @@ public class CpuCalculatorTests
         Assert.Equal(0.0, result);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Calculate_returns_total_and_per_core()
     {
         var prev = new CpuCalculator.State(
@@ -74,7 +74,7 @@ public class CpuCalculatorTests
         Assert.Equal(50.0, result.Measurement.CorePercents[1]);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Calculate_returns_updated_state()
     {
         var prev = CpuCalculator.State.Initial(2);
@@ -91,7 +91,7 @@ public class CpuCalculatorTests
         Assert.Equal([100, 120], result.NextState.CoreTotal);
     }
 
-    [Fact]
+    [Fact(Timeout = 30000)]
     public void Calculate_with_initial_state_returns_100_percent()
     {
         var prev = CpuCalculator.State.Initial(2);
