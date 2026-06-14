@@ -3,6 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Puhu.Btop.Actors;
 using Puhu.Btop.Core.Platform;
 using Puhu.Btop.Pages;
+using Puhu.Btop.Platform.Linux;
+using Puhu.Btop.Platform.Mac;
+using Puhu.Btop.Platform.Windows;
 using Puhu.Btop.Services;
 using Puhu.Plugin;
 
@@ -20,9 +23,8 @@ public sealed class BtopPlugin : IPuhuPlugin
             {
                 RegisterPlatform(services);
 
-                var store = new MetricStore();
-                services.AddSingleton(store);
-                services.AddSingleton<IMetricSink>(store);
+                services.AddSingleton(new MetricStore());
+                services.AddSingleton<IMetricSink>(sp => sp.GetRequiredService<MetricStore>());
                 services.AddSingleton<IMonitorDemand, MonitorDemandService>();
             })
             .WithActors((system, registry, resolver) =>
@@ -54,15 +56,15 @@ public sealed class BtopPlugin : IPuhuPlugin
     {
         if (OperatingSystem.IsWindows())
         {
-            Platform.Windows.ServiceCollectionExtensions.AddWindowsPlatform(services);
+            services.AddWindowsPlatform();
         }
         else if (OperatingSystem.IsLinux())
         {
-            Platform.Linux.ServiceCollectionExtensions.AddLinuxPlatform(services);
+            services.AddLinuxPlatform();
         }
         else if (OperatingSystem.IsMacOS())
         {
-            Platform.Mac.ServiceCollectionExtensions.AddMacPlatform(services);
+            services.AddMacPlatform();
         }
 
         RegisterGpu(services);
@@ -88,7 +90,7 @@ public sealed class BtopPlugin : IPuhuPlugin
         {
             try
             {
-                gpu = new Platform.Mac.MacGpuMetrics();
+                gpu = new MacGpuMetrics();
             }
             catch
             {

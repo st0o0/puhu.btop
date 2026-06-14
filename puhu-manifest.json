@@ -1,10 +1,10 @@
 {
   "id": "puhu.btop",
   "name": "Btop",
-  "description": "btop-style system monitor for Puhu — CPU, memory, disks, network and processes in one screen",
+  "description": "btop-style system monitor for Puhu - CPU, memory, disks, network and processes in one screen",
   "author": "st0o0",
   "version": "0.1.0",
-  "minPuhuVersion": "1.0.0",
+  "minPuhuVersion": "0.1.0",
   "license": "MIT",
   "repository": "https://github.com/st0o0/puhu.btop",
   "delivery": {
