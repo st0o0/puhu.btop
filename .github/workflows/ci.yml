@@ -12,6 +12,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  GLOBAL_JSON_PATH: "./src/global.json"
+  SOLUTION_PATH: "./src/Puhu.Btop.slnx"
+
 permissions:
   contents: read
 
@@ -22,14 +26,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Install .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "10.0.x"
+          global-json-file: ${{ env.GLOBAL_JSON_PATH }}
 
       - name: Restore
-        run: dotnet restore src/Puhu.Plugin.MyPlugin.csproj
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore src/Puhu.Plugin.MyPlugin.csproj
+        run: dotnet build ${{ env.SOLUTION_PATH }} -c Release --no-restore
+
+      - name: Test
+        working-directory: ./src
+        run: dotnet test --solution Puhu.Btop.slnx -c Release --no-build

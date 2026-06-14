@@ -1,0 +1,3 @@
+[submodule "lib/puhu"]
+	path = lib/puhu
+	url = git@github.com:st0o0/puhu.git
